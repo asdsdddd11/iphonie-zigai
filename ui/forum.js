@@ -77,14 +77,20 @@ export function forumApp(ctx) {
       actions: [heart, downloadAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify), shareAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify)].filter(Boolean)});
   }
 
+  function thumb(p) {
+    if (!p.photoId) return '';
+    return `<img class="forum-thumb" data-photo="${esc(p.photoId)}" alt="${esc(nameOf(p.author))} 的配图" style="max-width:100%;max-height:260px;object-fit:cover;border-radius:10px;display:block;margin:8px 0">`;
+  }
+
   function card(p, roles) {
     return `<button type="button" class="forum-card" data-action="open-post" data-id="${esc(p.id)}">
       <span class="forum-author">${face(p.author, 28)}<b>${esc(nameOf(p.author))}</b>${badge(p.author, roles)}<time>${ago(p.at)}</time></span>
       ${p.title ? `<strong class="forum-title">${esc(p.title)}</strong>` : ''}<span class="forum-excerpt">${esc(p.text)}</span>
+      ${thumb(p)}
       <span class="forum-meta"><span>${icon('eye')}${count(p.heat)}</span><span>${icon('bubble')}${p.replies.length}</span><span${p.liked ? ' class="on"' : ''}>${icon('heart', p.liked)}${count(p.likes)}</span></span></button>`;
   }
   // Up to a couple of hundred posts: only those near the screen are on the page.
-  const feed = rowWindow({win: ctx.win, id: p => p.id, row: p => card(p, roles)});
+  const feed = rowWindow({win: ctx.win, id: p => p.id, row: p => card(p, roles), filled: el => { loadPhotos(el).catch(() => {}); }});
   async function renderList(ticket) {
     const [all, hot] = await Promise.all([api.listForum(), api.forumHot()]);
     if (v.disposed || ticket !== epoch) return;
