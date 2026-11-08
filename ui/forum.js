@@ -53,7 +53,10 @@ export function forumApp(ctx) {
     }
   }
   function picture(p) {
-    if (p.photoId) return `<button type="button" class="forum-photo" data-action="forum-view-photo" data-id="${esc(p.id)}"><img data-photo="${esc(p.photoId)}" alt="${esc(nameOf(p.author))} 的配图" style="max-width:100%;max-height:340px;object-fit:contain;border-radius:10px;display:block"></button>`;
+    if (p.photoId) {
+      const url = urls.get(p.photoId);
+      return `<button type="button" class="forum-photo" data-action="forum-view-photo" data-id="${esc(p.id)}"><img data-photo="${esc(p.photoId)}"${url ? ` src="${esc(url)}"` : ''} alt="${esc(nameOf(p.author))} 的配图" style="max-width:100%;max-height:340px;object-fit:contain;border-radius:10px;display:block"></button>`;
+    }
     if (!p.imageTags) return '';
     if (p.imageState === 'waiting') return '<p class="moment-note">配图正在画……</p>';
     if (p.imageState === 'failed') return `<button type="button" class="moment-note" data-action="forum-draw" data-id="${esc(p.id)}">${esc(p.imageNote || '配图没画出来')} · 点一下重画</button>`;
@@ -79,7 +82,8 @@ export function forumApp(ctx) {
 
   function thumb(p) {
     if (!p.photoId) return '';
-    return `<img class="forum-thumb" data-photo="${esc(p.photoId)}" alt="${esc(nameOf(p.author))} 的配图" style="max-width:100%;max-height:260px;object-fit:cover;border-radius:10px;display:block;margin:8px 0">`;
+    const url = urls.get(p.photoId);
+    return `<img class="forum-thumb" data-photo="${esc(p.photoId)}"${url ? ` src="${esc(url)}"` : ''} alt="${esc(nameOf(p.author))} 的配图" style="max-width:100%;max-height:260px;object-fit:cover;border-radius:10px;display:block;margin:8px 0">`;
   }
 
   function card(p, roles) {
