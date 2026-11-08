@@ -76,7 +76,7 @@ export function rootApp(ctx) {
     const action = el.dataset.action;
     if (action === 'root-tab') { tab = el.dataset.tab; sub = tabDef()[2][0][0]; render(); }
     else if (action === 'root-sub') { sub = el.dataset.sub; render(); }
-    else if (action === 'root-refresh') ctx.notify('猎场刷新下一阶段接入');
+    else if (action === 'root-refresh') { v.busy(el, async () => { const found = await api.rootHunt(); ctx.notify(`刷出 ${found.length} 个新猎物`); render(); }); }
     else if (action === 'root-open') ctx.notify('目标档案后续接入');
   });
 

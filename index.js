@@ -472,6 +472,7 @@ function connect(source){
   forumReply:(id,replyId)=>{check();return appsHost.forumReply(id,replyId);},
   forumBusy:()=>{check();return appsHost.busy('forum');},
   forumDrawImage:(id,allowPaid,tags)=>{check();return appsHost.forumDrawImage(id,{allowPaid,tags:typeof tags==='string'?tags:''});},
+  rootHunt:()=>{check();return appsHost.rootHunt();},
   peekLook:(name,keep)=>{check();return appsHost.peekLook(name,{keep:keep===true});},
   memoryTidy:threadId=>{check();return memoryHost.tidy(threadId,{force:true});},
   memoryStatus:threadId=>{check();return memoryHost.status(threadId);},

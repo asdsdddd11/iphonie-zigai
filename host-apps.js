@@ -7,6 +7,7 @@ import {storyLines, pickCrowd, activityNames} from './core/moments.js';
 import {inSpace, activeChatPreset, cleanTagged} from './core/chat.js';
 import {worldInfoFor, loreOptions} from './host-lore.js';
 import {pictureInputs, sizeFor, photoPicture} from './core/draw.js';
+import {HUNT_PROMPT, parseHunt} from './core/root.js';
 
 const PEOPLE = 12;
 
@@ -179,5 +180,26 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     }
   }
 
-  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, busy: app => !!busy[app]};
+  // ---------- 根源重塑 ----------
+  /** 猎场刷新：用文字模型生成 3~6 个新猎物，存进猎物库。 */
+  function rootHunt() {
+    return run('root', async ctx => {
+      const {preset} = base();
+      const state = await backend.rootState();
+      const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(Boolean);
+      const prompt = [
+        {role: 'system', content: HUNT_PROMPT},
+        {role: 'user', content: `当前猎物库已有：${existing.join('、') || '（空）'}。生成 3 到 6 个新猎物，不要和已有的重名。`},
+      ];
+      const reply = await ask(ctx, prompt, preset, 'root');
+      const found = parseHunt(reply);
+      if (!found.length) throw Error('这次没有刷出新猎物，可以再试一次');
+      const 猎物库 = { ...state.猎物库 };
+      for (const t of found) 猎物库[crypto.randomUUID()] = t;
+      await backend.saveRoot({ 猎物库 });
+      return found;
+    });
+  }
+
+  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, busy: app => !!busy[app]};
 }
