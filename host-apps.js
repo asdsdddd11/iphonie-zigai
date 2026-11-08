@@ -7,7 +7,7 @@ import {storyLines, pickCrowd, activityNames} from './core/moments.js';
 import {inSpace, activeChatPreset, cleanTagged} from './core/chat.js';
 import {worldInfoFor, loreOptions} from './host-lore.js';
 import {pictureInputs, sizeFor, photoPicture} from './core/draw.js';
-import {HUNT_PROMPT, parseHunt} from './core/root.js';
+import {HUNT_PROMPT, SHOW_PROMPT, parseHunt, parseShow, huntToTarget, huntToFeed} from './core/root.js';
 
 const PEOPLE = 12;
 
@@ -181,7 +181,7 @@ export function createAppsHost({context, settings, backend, memory = null}) {
   }
 
   // ---------- 根源重塑 ----------
-  /** 猎场刷新：用文字模型生成 3~6 个新猎物，存进猎物库。 */
+  /** 猎场刷新：用文字模型生成新猎场帖子，追加进猎场流（旧的保留）。 */
   function rootHunt() {
     return run('root', async ctx => {
       const {preset} = base();
@@ -189,17 +189,48 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(Boolean);
       const prompt = [
         {role: 'system', content: HUNT_PROMPT},
-        {role: 'user', content: `当前猎物库已有：${existing.join('、') || '（空）'}。生成 3 到 6 个新猎物，不要和已有的重名。`},
+        {role: 'user', content: `当前猎物库已有：${existing.join('、') || '（空）'}。生成新帖子，猎物不要和已有的重名。`},
       ];
       const reply = await ask(ctx, prompt, preset, 'root');
-      const found = parseHunt(reply);
-      if (!found.length) throw Error('这次没有刷出新猎物，可以再试一次');
+      const hunt = parseHunt(reply);
+      if (!hunt.length) throw Error('这次没有刷出新帖子，可以再试一次');
       const 猎物库 = { ...state.猎物库 };
-      for (const t of found) 猎物库[crypto.randomUUID()] = t;
-      await backend.saveRoot({ 猎物库 });
-      return found;
+      const 猎场流 = [...(state.猎场流 || [])];
+      const now = Date.now();
+      for (const f of hunt) {
+        const id = crypto.randomUUID();
+        猎物库[id] = huntToTarget(f);
+        猎场流.push(huntToFeed(f, id, now));
+      }
+      await backend.saveRoot({ 猎物库, 猎场流 });
+      return hunt.length;
+    });
+  }
+  /** 便器广场刷新：用文字模型生成新广场帖子，追加进广场流。 */
+  function rootShowcase() {
+    return run('root', async ctx => {
+      const {preset} = base();
+      const state = await backend.rootState();
+      const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(Boolean);
+      if (!existing.length) throw Error('还没有猎物，先刷猎场');
+      const prompt = [
+        {role: 'system', content: SHOW_PROMPT},
+        {role: 'user', content: `已有便器：${existing.join('、')}。生成广场帖子，作者从这些里选。`},
+      ];
+      const reply = await ask(ctx, prompt, preset, 'root');
+      const show = parseShow(reply);
+      if (!show.length) throw Error('这次没有刷出广场帖子，可以再试一次');
+      const 广场流 = [...(state.广场流 || [])];
+      const now = Date.now();
+      for (const f of show) {
+        const name = f['作者'];
+        const id = Object.entries(state.猎物库).find(([, t]) => t.基础档案?.姓名 === name)?.[0];
+        if (id) 广场流.push(huntToFeed(f, id, now));
+      }
+      await backend.saveRoot({ 广场流 });
+      return 广场流.length;
     });
   }
 
-  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, busy: app => !!busy[app]};
+  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, rootShowcase, busy: app => !!busy[app]};
 }

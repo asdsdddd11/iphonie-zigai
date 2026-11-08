@@ -5,6 +5,9 @@ import {createView, esc, btn, field, input, textArea, heading, avatar, empty, me
 import {icon} from './icons.js';
 import {shareToChat} from './share-to-chat.js';
 import {previewBlob} from './thumbs.js';
+import {openImageViewer} from '../image-viewer.js';
+import {viewerHeart} from './photo-heart.js';
+import {downloadAction, shareAction} from '../download.js';
 
 function ago(at) {
   const s = (Date.now() - at) / 1000;
@@ -29,6 +32,14 @@ export function forumApp(ctx) {
   const busy = () => api.forumBusy?.();
   // 帖子配图：懒加载中间尺寸的图，避免一次解码整页大图。
   const urls = new Map();
+  const urlFor = async id => {
+    if (urls.has(id)) return urls.get(id);
+    const blob = await previewBlob(api, id);
+    if (!blob) throw Error('这张配图找不到了');
+    const url = ctx.win.URL.createObjectURL(blob);
+    urls.set(id, url);
+    return url;
+  };
   async function loadPhotos(root = v.root) {
     for (const img of root.querySelectorAll('img[data-photo]')) {
       const id = img.dataset.photo;
@@ -43,11 +54,28 @@ export function forumApp(ctx) {
     }
   }
   function picture(p) {
-    if (p.photoId) return `<button type="button" class="forum-photo" data-action="forum-view-photo" data-id="${esc(p.id)}"><img data-photo="${esc(p.photoId)}" alt="${esc(nameOf(p.author))} 的配图"></button>`;
+    if (p.photoId) return `<button type="button" class="forum-photo" data-action="forum-view-photo" data-id="${esc(p.id)}"><img data-photo="${esc(p.photoId)}" alt="${esc(nameOf(p.author))} 的配图" style="max-width:100%;max-height:340px;object-fit:contain;border-radius:10px;display:block"></button>`;
     if (!p.imageTags) return '';
     if (p.imageState === 'waiting') return '<p class="moment-note">配图正在画……</p>';
     if (p.imageState === 'failed') return `<button type="button" class="moment-note" data-action="forum-draw" data-id="${esc(p.id)}">${esc(p.imageNote || '配图没画出来')} · 点一下重画</button>`;
     return `<button type="button" class="moment-note" data-action="forum-draw" data-id="${esc(p.id)}">这条帖子有配图 · 点一下画出来</button>`;
+  }
+  /** 帖子配图，点开看大图：多版左右滑、看参数、下载、分享、收藏，和朋友圈一样。 */
+  async function viewPhoto(p, img) {
+    const versions = [];
+    for (const photoId of [...new Set([...(p.imageVersions || []), p.photoId].filter(Boolean))]) {
+      try {
+        const photo = await api.getPhoto(photoId);
+        if (photo) versions.push({photoId, photo, src: await urlFor(photoId)});
+      } catch {}
+    }
+    if (v.disposed || !versions.length) return;
+    const heart = await viewerHeart(api, i => versions[i].photoId, ctx.notify);
+    if (v.disposed) return;
+    openImageViewer({doc: ctx.doc, from: img, caption: p.text || '',
+      gallery: {items: versions.map(x => ({src: x.src, alt: p.text || '', info: x.photo.info})), index: Math.max(0, versions.findIndex(x => x.photoId === p.photoId)),
+        onIndex: i => { const fn = api.forumPickImage; if (fn) fn(p.id, versions[i].photoId).then(() => render(), () => {}); }},
+      actions: [heart, downloadAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify), shareAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify)].filter(Boolean)});
   }
 
   function card(p, roles) {
@@ -168,6 +196,7 @@ export function forumApp(ctx) {
       case 'open-post': open = el.dataset.id; await render(); v.root.scrollTop = 0; break;
       case 'forum-like': { const p = post || await api.getForumPost(open); if (p) { await api.likeForum(open, !p.liked); await render(); } break; }
       case 'forum-draw': { const p = post || await api.getForumPost(open); if (p) background(api.forumDrawImage(open)); break; }
+      case 'forum-view-photo': { const p = post || await api.getForumPost(open); if (p) viewPhoto(p, el.querySelector('img') || el); break; }
       case 'forum-reply': replyTo(el.dataset.to || ''); break;
       case 'forum-my-reply': if (await ctx.confirm('删除这条回复？')) { await api.deleteForumReply(open, el.dataset.reply); await render(); } break;
       // 0.9.35: 转发 to a chat (论坛 × 聊天) and 删除 live under ⋯.
