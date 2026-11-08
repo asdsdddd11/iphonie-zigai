@@ -250,7 +250,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
     const book = await backend.memoryBook(lifeBook(name));
     // 1. 新的 level 0 生活摘要（累积，不覆盖旧摘要）
     const prompt0 = [
-      {role: 'system', content: `你在整理${name}的朋友圈动态、论坛发言和生活记录，写成一段以后能直接拿来接着聊的生活摘要（300 到 500 字）。要留下：TA 发的朋友圈和论坛发言、TA 手机里记的事（备忘录、想买的东西、搜过什么、和谁在聊什么）、TA 的喜好、习惯、近况、心情。只整理不编造，直接写正文，不要标题。`},
+      {role: 'system', content: `你在把${name}的生活记录整理成一段生活摘要（300 到 500 字），以后能直接拿来接着聊。只根据下面给的记录写：里面有什么就写什么（朋友圈动态、论坛发言、手机里的生活记录都可能出现，也可能没有）；没提到的内容一律不补、不编造。直接写正文，不要标题。`},
       {role: 'user', content: `生活记录：\n${text.slice(0, 6000)}`},
     ];
     const summary = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: prompt0, trimNames: false}));
