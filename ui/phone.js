@@ -32,7 +32,8 @@ const LOADERS = {
   paint: () => import('./paint.js').then(m => m.paintApp), vn: () => import('./vn.js').then(m => m.vnApp), logs: () => import('./logs.js').then(m => m.logsApp),
   ledger: () => import('./ledger.js').then(m => m.ledgerApp),
   wardrobe: () => import('./wardrobe.js').then(m => m.wardrobeApp),
-  generator: () => import('./generator.js').then(m => m.generatorApp)
+  generator: () => import('./generator.js').then(m => m.generatorApp),
+  root: () => import('./root.js').then(m => m.rootApp)
 };
 const FACTORIES = {}, loading = {};
 // After this long without its module, the phone says the tavern is slow (once a page, per app).

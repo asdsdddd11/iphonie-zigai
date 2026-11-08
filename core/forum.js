@@ -38,21 +38,21 @@ export function forumContext(posts, user = '我', handles = {}) {
  * 'react': replies to the user's new post; 'reply': answers to the user's reply. people: [{name, persona, card}].
  */
 
-export function buildForumRequest({prompts = {}, preset, mode = 'posts', people, story = [], user = '我', userPersona = '', recent = [], hot = [], post = null, reply = null, lore = '', earlier = '', handles = {}}) {
+export function buildForumRequest({prompts = {}, preset, mode = 'posts', people, story = [], user = '我', userPersona = '', recent = [], hot = [], post = null, reply = null, lore = '', earlier = '', handles = {}, images = true}) {
   const label = screenName(handles, user), missing = people.filter(p => !handles[p.name]).map(p => p.name);
-  const rules = preset.entries.filter(e => e.enabled && e.text.trim() && (e.use || []).includes('forum')).map(e => fill(e.text, {'用户': user}));
+  const rules = preset.entries.filter(e => e.enabled && e.text.trim() && (e.use || []).includes('forum')).filter(e => images || e.id !== 'f-picture').map(e => fill(e.text, {'用户': user}));
   const now = {'刷新': mode === 'posts', '回应': mode === 'react'};
   const system = promptText(prompts, 'forum', 'system', {...now, '预设规则': rules.join('\n\n'), '用户': user,
     '论坛里的角色': people.map(p => `- ${handles[p.name] ? `网名「${handles[p.name]}」，其实是${p.name}` : p.name}：${(p.persona || p.card || '').trim() || '（没有资料，按剧情里的表现来）'}`).join('\n'),
     '世界书': lore.trim(), '用户设定': userPersona.trim(), '更早的剧情': earlier.trim(), '最近的剧情': story.map(s => `${s.name}：${s.text}`).join('\n'),
     '热搜': mode === 'posts' ? hot.join('\n') : '', '最近的帖子': mode === 'posts' ? recent.map(p => `${label(p.author)}｜${p.title}`).join('\n') : '',
-    '我的网名': label('me'), '没网名的人': missing.join('、')});
+    '我的网名': label('me'), '没网名的人': missing.join('、'), '出图': images});
   const ask = promptText(prompts, 'forum', 'ask', {...now, '用户': user, '帖子数': preset.posts + 1, '我的网名': label('me'),
     '帖子': mode === 'posts' ? '' : postLines(post, user, 30, label), '回复': mode === 'reply' ? reply.text : '', '回复谁': mode === 'reply' && reply.to ? label(reply.to) : ''});
   return [{role: 'system', content: system}, {role: 'user', content: ask}];
 }
 
-const LINE = /^\s*(?:[-*•]\s*)?[【\[]\s*(热搜|帖子|回复|评论|网名)\s*[】\]]\s*(.*)$/;
+const LINE = /^\s*(?:[-*•]\s*)?[【\[]\s*(热搜|帖子|回复|评论|网名|配图)\s*[】\]]\s*(.*)$/;
 const SAID = /^([^:：\n]{1,30}?)\s*(?:回复\s*([^:：\n]{1,30}?))?\s*[:：]\s*(.+)$/;
 const clean = s => String(s).replace(/<[^>]+>/g, '').trim().replace(/^[「“"](.*)[」”"]$/s, '$1').trim();
 
@@ -88,8 +88,10 @@ export function parseForum(reply, {user = '我', mode = 'posts', handles = {}} =
       if (parts.length === 2) parts = [parts[0], '', parts[1]];
       const author = real(person(parts[0].replace(/[:：]$/, ''))), title = clean(parts[1]).slice(0, FORUM_LIMITS.title), text = clean(parts.slice(2).join('｜')).slice(0, FORUM_LIMITS.text);
       if (isUser(author) || !text) continue;
-      post = {author, title, text, replies: []};
+      post = {author, title, text, imageTags: '', replies: []};
       out.posts.push(post);
+    } else if (kind === '配图') {
+      if (post && !post.imageTags) post.imageTags = clean(rest).replace(/[一-鿿]+/g, ' ').split(/[,，]/).map(t => t.replace(/\s+/g, ' ').trim()).filter(Boolean).join(', ').slice(0, 600);
     } else {
       const s = rest.match(SAID), from = s && real(person(s[1]));
       if (!from || isUser(from)) continue;
@@ -107,7 +109,11 @@ export function cleanPost(p, id, at, newId) {
   if (!text) throw Error('帖子内容为空');
   const replies = (Array.isArray(p.replies) ? p.replies : []).slice(-FORUM_LIMITS.replies).map((r, i) => cleanReply(r, r?.id || newId(), Number.isFinite(r?.at) ? r.at : at + i + 1));
   return {id, kind: 'forum', author, title, text, at, source: ['auto', 'me'].includes(p.source) ? p.source : 'auto',
-    likes: Math.max(0, Math.round(Number(p.likes) || 0)), liked: p.liked === true, heat: Math.max(0, Math.round(Number(p.heat) || 0)), replies, ...(p.space ? {space: clip(p.space, 300)} : {}), ...(p.save ? {save: clip(p.save, 400)} : {})};
+    likes: Math.max(0, Math.round(Number(p.likes) || 0)), liked: p.liked === true, heat: Math.max(0, Math.round(Number(p.heat) || 0)), replies,
+    imageTags: clip(p?.imageTags, 600).trim(), photoId: clip(p?.photoId, 512),
+    imageState: ['waiting', 'done', 'failed'].includes(p?.imageState) ? p.imageState : '',
+    imageVersions: (Array.isArray(p?.imageVersions) ? p.imageVersions : []).map(x => clip(x, 512)).filter(Boolean).slice(-10),
+    ...(p.space ? {space: clip(p.space, 300)} : {}), ...(p.save ? {save: clip(p.save, 400)} : {})};
 }
 export function cleanReply(r, id, at) {
   const from = person(r?.from), said = clip(r?.text, FORUM_LIMITS.reply).trim();

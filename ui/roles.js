@@ -8,6 +8,7 @@ import {pickPicture} from './draw-images.js';
 import {VOICE_GENDERS, VOICE_AGES, poolLine, readPoolFile, poolFile, guessVoice} from '../core/auto-voice.js';
 import {saveFile} from '../download.js';
 import {icon, halo} from './icons.js';
+import {memorySheet} from './chat-memory.js';
 
 function barcode(seed) {
   let h = 0, bars = '';
@@ -236,6 +237,8 @@ export function rolesApp(ctx) {
           <div class="actions role-try">${btn('role-try', icon('paint') + '试画一张', 'secondary')}${help('用现在写的外貌和负面、在用的画风画一张半身像，看看对不对，不用先保存。图也会存进相册。要扣 Anlas 或花钱时会先问。')}</div>
           ${tried && tried.id === (r.id || 'new') ? `<div class="role-tried"><img src="${esc(tried.url)}" alt="试画的图"></div>` : ''}
           ${refField(r)}</div></details>
+        ${groupTitle('生活记忆')}
+        <div class="group"><button class="list-row" data-action="life-memory"><span><strong>生活记忆</strong><small>朋友圈、论坛和查手机整理成的摘要，可查看、修改、删除</small></span>${icon('next')}</button></div>
         <div class="savebar" data-engine="${r.engine}"><span class="save-state" data-save-state>草稿</span>${btn('audition', icon('play', true) + '试听', 'secondary')}${btn('save-role', '保存', 'primary')}</div>
         ${pending ? `<div class="actions" data-engine="${r.engine}">${btn('continue-role', '保存并继续朗读', 'primary')}</div>` : ''}
         ${r.id ? `<div class="actions">${btn('delete-role', icon('trash') + '删除角色配音', 'text-button danger-text')}</div>` : ''}`);
@@ -452,6 +455,12 @@ export function rolesApp(ctx) {
           current = structuredClone(route); drafts.set(route.id, current);
           render(); ctx.notify(`给「${name}」重新挑了：${route.autoName || route.voice}`);
         });
+        break;
+      }
+      case 'life-memory': {
+        const name = current?.name?.trim();
+        if (!name) { ctx.notify('先填写角色名称', {error: true}); break; }
+        memorySheet(ctx, {threadId: 'life:' + name, title: name + ' · 生活'});
         break;
       }
     }

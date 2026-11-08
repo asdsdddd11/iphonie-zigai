@@ -57,12 +57,16 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const space = backend.cardKey(), save = backend.saveKey(), hotId = backend.hotId(), {preset, everyone, user} = base(), handles = netNames();
       const posts = await feed(), recent = posts.slice(0, 8), hot = (await backend.apps.get(hotId))?.topics || [];
       const story = storyLines(ctx.chat, preset, user), crowd = pick(everyone, story, posts);
-      const prompt = buildForumRequest({prompts: settings().promptRules, preset, handles, earlier: memory?.storyMemory() || '', mode: 'posts', people: crowd, story, user, userPersona: userPersona(), recent, hot, lore: await lore(preset, crowd, story, [...hot, ...recent.map(p => p.title)])});
+      const prompt = buildForumRequest({prompts: settings().promptRules, preset, handles, earlier: memory?.storyMemory() || '', mode: 'posts', people: crowd, story, user, userPersona: userPersona(), recent, hot, lore: await lore(preset, crowd, story, [...hot, ...recent.map(p => p.title)]), images: settings().moments.images !== false});
       const found = parseForum(await ask(ctx, prompt, preset, 'forum'), {user, mode: 'posts', handles});
       await keepNames(found.names, crowd);
       if (!found.posts.length) throw Error('这次没有刷出新帖子，可以再刷新一次');
       if (found.hot.length) await backend.setForumHot(found.hot, hotId);
-      return backend.addForumPosts(found.posts, {space, save});
+      const added = await backend.addForumPosts(found.posts, {space, save});
+      forumDrawNew(added);
+      // 生活记忆：论坛刷新后，只把已有角色的发帖压缩进生活摘要（路人不是角色，跳过，别浪费 token）。
+      try { for (const author of new Set(added.map(p => p.author))) if (author && author !== 'me' && everyone.some(c => c.name === author)) memory?.tidyLife?.(author).catch(() => {}); } catch {}
+      return added;
     });
   }
   /** Replies to the user's new post. */
@@ -76,7 +80,9 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const found = parseForum(await ask(ctx, prompt, preset, 'forum'), {user, mode: 'react', handles});
       await keepNames(found.names, crowd);
       if (!found.replies.length) throw Error('这次没有人回复，可以再试一次');
-      return backend.addForumReplies(postId, found.replies);
+      const added = await backend.addForumReplies(postId, found.replies);
+      try { for (const from of new Set(found.replies.map(r => r.from))) if (from && from !== 'me' && everyone.some(c => c.name === from)) memory?.tidyLife?.(from).catch(() => {}); } catch {}
+      return added;
     });
   }
   /** Answers to the user's reply. */
@@ -93,7 +99,9 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const found = parseForum(await ask(ctx, prompt, preset, 'forum'), {user, mode: 'reply', handles});
       await keepNames(found.names, crowd);
       if (!found.replies.length) throw Error('这次没有人接话，可以再试一次');
-      return backend.addForumReplies(postId, found.replies);
+      const added = await backend.addForumReplies(postId, found.replies);
+      try { for (const from of new Set(found.replies.map(r => r.from))) if (from && from !== 'me' && everyone.some(c => c.name === from)) memory?.tidyLife?.(from).catch(() => {}); } catch {}
+      return added;
     });
   }
 
@@ -111,7 +119,11 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const before = keep ? (await backend.apps.get(peekId(name, key))) || (key ? await backend.apps.get(peekId(name)) : null) : null;
       const prompt = buildPeekRequest({prompts: settings().promptRules, preset, before, earlier: memory?.storyMemory() || '', person, story, user, userPersona: userPersona(), history, memory: remembered, images: !!backend.drawReady(), lore: await lore(preset, [person], story, history.map(m => m.text || ''))});
       const found = parsePeek(await ask(ctx, prompt, preset, 'peek'), {name, user});
-      return backend.savePeek({name, ...mergePeek(before, found)}, key);
+      const snap = mergePeek(before, found);
+      const saved = await backend.savePeek({name, ...snap}, key);
+      // 生活记忆：查手机后压缩成摘要，角色之后聊天时记得自己的生活。
+      memory?.tidyLife?.(name).catch(() => {});
+      return saved;
     });
   }
 
@@ -142,5 +154,30 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     }
   }
 
-  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, busy: app => !!busy[app]};
+  // ---------- 论坛配图（和朋友圈一样） ----------
+  function forumDrawNew(posts) {
+    if (settings().moments.images) for (const post of posts || []) if (post.imageTags && !post.photoId) forumDrawImage(post.id).catch(() => {});
+  }
+  /** Draws a post's picture. Without allowPaid, only when the free tier covers it. */
+  async function forumDrawImage(postId, {allowPaid = false, tags = ''} = {}) {
+    const set = patch => backend.appsMutate('forum', () => backend.apps.change(postId, post => Object.assign(post, patch)));
+    if (String(tags).trim()) await set({imageTags: String(tags).trim()});
+    const post = await backend.apps.get(postId);
+    if (!post?.imageTags) throw Error('这条帖子没有配图描述');
+    if (!backend.drawReady()) { await set({imageState: 'failed', imageNote: backend.drawMissing()}); return null; }
+    try {
+      const names = [...settings().routes.map(r => r.name), userName()];
+      const input = pictureInputs(settings(), photoPicture(settings(), {text: post.text, tags: post.imageTags, owner: post.author, names}), '');
+      await set({imageState: 'waiting', imageNote: ''});
+      const result = await backend.generateImage({...input, allowPaid, name: `论坛-${post.author}`, key: `forum:${postId}`, label: `论坛 · ${post.author}`});
+      const now = await backend.apps.get(postId);
+      await set({photoId: result.photoId, imageVersions: [...(now?.imageVersions || []), now?.photoId, result.photoId].filter(Boolean), imageState: 'done', imageNote: ''});
+      return result.photoId;
+    } catch (error) {
+      await set({imageState: 'failed', imageNote: error.code === 'PAID' ? backend.paidPrompt().note : error.message});
+      throw error;
+    }
+  }
+
+  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, busy: app => !!busy[app]};
 }

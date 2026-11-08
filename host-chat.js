@@ -158,7 +158,12 @@ export function createChatHost({context, settings, backend, notice, memory = nul
       if (thread.type === 'dm' && promptOn(s.promptRules, 'chat-groups')) {
         try { shared = await sharedGroups(thread.members[0], user); } catch (error) { backend.reportDiagnostic?.('聊天 · 同群消息', error, 'warn'); }
       }
-      const remembered = memory ? (await memory.contextFor(thread, {query}).catch(() => ({text: ''}))).text : '';
+      // 角色生活记忆：朋友圈和查手机内容已压缩成摘要存进 life book，这里只读摘要（省 token）。
+      let life = '';
+      if (thread.type === 'dm' && thread.members[0]) {
+        try { life = memory ? await memory.lifeContext(thread.members[0]).catch(() => '') : ''; } catch { life = ''; }
+      }
+      const remembered = (memory ? (await memory.contextFor(thread, {query}).catch(() => ({text: ''}))).text : '') + (life ? `${life}\n\n` : '');
       const request = pics => buildChatRequest({prompts: settings().promptRules, preset, thread, members: people, story: recent, user, userPersona: userPersona(), voiceFormat, lore, forum, groups: shared, memory: remembered, earlier: memory?.storyMemory() || '', images: !!backend.drawReady?.(), stickers: stickersFor(people.map(p => p.name)), nudge, cue, time: time || Date.now(), statuses: statusesOf(people), peeked: peekedNow ? peekedNow.what || true : '', posts, outfit, pats: Object.fromEntries(people.map(p => [p.name, suffixOf(p.name)]).filter(([, s]) => s)), music: {share: s.music?.share !== false, listening: s.music?.share !== false ? backend.listening : null}, pictures: pics});
       const answer = cleanTagged(await answerFor(ctx, request, await pictures(ctx, thread, preset), signal), preset.cleanTags);
       // 停止 while it was being written: what comes late is let go (the tavern's own generation cannot be stopped).

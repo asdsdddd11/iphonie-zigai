@@ -25,7 +25,8 @@ export const APPS = {
   picbook: {name: '绘本', eyebrow: 'Picture Book', colors: ['#bfe6ff', '#3f8fe8', '#ffd25e']},
   ledger: {name: '账本', eyebrow: 'Ledger', colors: ['#f4d9ae', '#a8692a', '#ffe9a0']},
   wardrobe: {name: '衣柜', eyebrow: 'Wardrobe', colors: ['#f7c9d2', '#b03a5b', '#ffe3a3']},
-  generator: {name: '生成器', eyebrow: 'Generator', colors: ['#e6f6b0', '#6f9a1e', '#ffc4dc']}
+  generator: {name: '生成器', eyebrow: 'Generator', colors: ['#e6f6b0', '#6f9a1e', '#ffc4dc']},
+  root: {name: '根源重塑', eyebrow: 'Root Rebirth', colors: ['#c5a47e', '#7a6245', '#e8e8e8']}
 };
 
 export const SLOT = null;
@@ -35,7 +36,7 @@ export const SLOT = null;
 export const HOME = {
   pages: [
     ['roles', 'engines', 'presets', 'library', 'gallery', 'notes', 'forum', 'peek'],
-    ['sounds', 'assistant', 'music', 'games', 'paint', 'vn', 'logs', 'indie', 'picbook', 'ledger', 'wardrobe', 'generator']
+    ['sounds', 'assistant', 'music', 'games', 'paint', 'vn', 'logs', 'indie', 'picbook', 'ledger', 'wardrobe', 'generator', 'root']
   ],
   dock: ['chat', 'draw', 'listen', 'settings']
 };

@@ -45,6 +45,7 @@ export const CHAT_LIMITS = Object.freeze({contacts: 200, persona: 4000, story: 1
 // Where a rule is used: private chats, group chats, 朋友圈 (posts, likes and comments), 电话 (voice calls).
 export const RULE_USES = Object.freeze(['dm', 'group', 'moments', 'call', 'forum', 'peek', 'story']);
 export const DEFAULT_CHAT_ENTRIES = Object.freeze([
+  {id: 'busy', title: '忙的时候不玩手机', use: ['dm', 'group', 'moments', 'call', 'forum'], text: '先看【最近的剧情】：谁正和{{用户}}当面在一起、腾不出手（在亲热、玩耍、说话、忙别的事、睡着了），谁就暂时不碰手机——这一轮不发朋友圈、不主动给{{用户}}发消息、不打电话；{{用户}}先发来消息的话，回得慢、回得短，或者忙完才回。只有人不在{{用户}}身边、明显闲着，或者剧情里正在刷手机，才正常用手机。拿不准就当他忙，别让他用手机。'},
   {id: 'style', title: '短信口吻', text: '你在一个手机聊天软件里，以联系人本人的身份回复{{用户}}。像真的在发手机消息：口语，可以用语气词和颜文字，不写动作、旁白和心理描写，不加引号。发几条、每条多长，按这个人的性格、说话习惯和当下的心情来：话少的人可能只回一个字、一个表情；话多的人会连着发好几条；习惯打长段的人一条就是一大段；激动、委屈、兴奋或者有很多话想说的时候，可以一口气发很多条。不要每次都发差不多的条数和长度。', use: ['dm', 'group']},
   {id: 'persona', title: '守住人设', text: '严格按每个联系人的人设、和{{用户}}的关系、说话习惯来回复。最近的剧情只作背景：可以提到发生过的事，但不要复述剧情，也不要替{{用户}}说话。', use: ['dm', 'group']},
   {id: 'group', title: '群聊', text: '群聊里谁接话、几个人接话，看话题和各自性格：冷场时可能只有一个人回，热闹的话题可以好几个人抢着说；每个人发多少也按各自的说话习惯。成员之间也可以互相回应、吐槽。', use: ['group']},
@@ -57,6 +58,7 @@ export const DEFAULT_CHAT_ENTRIES = Object.freeze([
   {id: 'm-picture', title: '朋友圈配图', use: ['moments'], text: '有画面感的动态可以配一张图，大约三成的动态配图就好：自拍、吃的、风景、宠物、正在看的东西。配图写成英文 danbooru tag，描述画面本身。'},
   {id: 'c-dial', title: '打电话', use: ['dm'], text: '想马上听到{{用户}}的声音、有急事、吵完架想和好、半夜睡不着想念的时候，很偶尔可以直接打电话过去。大多数时候发消息就好，只有真的有理由时才打。'},
   {id: 'f-style', title: '论坛口吻', use: ['forum'], text: '论坛是公开的，谁都能看：发帖和回帖的有角色，也有不认识的网友（路人）。路人有自己的网名和说话习惯，吃瓜、八卦、玩梗、抬杠、安利、求助都可以，口吻像真的网友，别都是好话。角色在论坛上用自己的名字，发言符合人设；公开场合说话一般比私聊更注意分寸，除非人设就是这样。话题可以来自这个世界里公开发生的事、人人都知道的设定、日常生活和身边的事；剧情里私下发生的事，论坛上的人不知道。'},
+  {id: 'f-picture', title: '论坛配图', use: ['forum'], text: '有画面感的帖子可以配一张图，大约三成的帖子配图就好：自拍、吃的、风景、宠物、正在看的东西。配图写成英文 danbooru tag，描述画面本身。'},
   {id: 'p-style', title: 'TA 的手机', use: ['peek'], text: '{{用户}}正在偷看{{对象}}的手机。手机里的东西都要像真的：{{对象}}和朋友、家人、同事或别的角色的聊天，搜索记录，备忘录，相册。内容要符合{{对象}}的人设、生活和最近发生的事，聊天对象各有各的说话方式；可以藏着{{对象}}没对{{用户}}说出口的心思、小秘密或者反差，但不要编出和剧情矛盾的大事件。'},
   {id: 's-text', title: '正文里主动发消息', use: ['story'], text: '剧情里有人这时会给{{用户}}发手机消息的话（刚分开、说好到了报个平安、在别处想起{{用户}}、有事找{{用户}}、吵完架想和好……），可以让 TA 在手机上发几条消息。像真的短信：口语、简短，看人设和剧情来，也可以发 [图片]、[位置]、[红包 ¥金额] 这些。不用每次都发，剧情里没有合适的时候就不发。'},
   {id: 'c-style', title: '通话口吻', use: ['call'], text: '你在和{{用户}}打语音电话，说的每一句都会被念出来。像真人打电话一样说话：口语，会接话、会反问，会有停顿和语气词。说多少按人设和情境来：话少的人三言两语，健谈的人、激动的时候、正在讲一件事的时候可以一口气说一大段；不要每次都说差不多长。身边发生的小事用说的话带出来（比如「等一下，我这边有点吵」），不写动作、旁白、心理描写和表情符号。守住人设和你们的关系，最近的剧情和聊天可以自然提起。'}
@@ -71,7 +73,9 @@ const DEFAULT_INJECTION = {position: 'in_chat', depth: 1, role: 'system'};
 // default words get the new ones, rules the user changed stay as they are.
 // rev 6 (0.6.45): 论坛 and 查手机; presets made earlier get 论坛口吻 and TA 的手机 once.
 // rev 7 (0.7.3): characters text the user from the story; presets made earlier get 正文里主动发消息 once.
-const PRESET_REV = 7;
+// rev 8: 论坛配图; presets made earlier get 论坛配图 once.
+// rev 9: 忙的时候不玩手机; presets made earlier get it once.
+const PRESET_REV = 9;
 const OLD_RULES = Object.freeze({style: '你在一个手机聊天软件里，以联系人本人的身份回复{{用户}}。像真的在发手机消息：口语、简短，一次发一到三条，每条一两句话。可以用语气词和颜文字，不写动作、旁白和心理描写，不加引号。', group: '群聊里每次由一到三位成员接话，谁接话看话题和各自性格，成员之间也可以互相回应、吐槽。', 'c-style': '你在和{{用户}}打语音电话，说的每一句都会被念出来。像真人打电话一样说话：口语、句子短，一次说一到三句；会接话、会反问，会有停顿和语气词。身边发生的小事用说的话带出来（比如「等一下，我这边有点吵」），不写动作、旁白、心理描写和表情符号。守住人设和你们的关系，最近的剧情和聊天可以自然提起。'});
 const DEFAULT_PRESET = {id: 'default', name: '日常短信', rev: PRESET_REV, context: 6, history: 30, storyEach: 4000, storyTotal: 20000, loreMax: 30000, posts: 2, lore: true, loreSkipBooks: [], loreSkipEntries: [], loreExtraBooks: [], cleanTags: [], bring: DEFAULT_BRING, injection: DEFAULT_INJECTION, entries: DEFAULT_CHAT_ENTRIES.map(e => ({...e, enabled: true}))};
 
@@ -125,6 +129,14 @@ export function normalizeChatPreset(p = {}) {
     entries = [...entries, ...missing.map(e => ({...e, enabled: true}))];
   }
   if (!(Number(p.rev) >= 7) && entries.length && !entries.some(e => e.id === 's-text')) entries = [...entries, {...DEFAULT_CHAT_ENTRIES.find(e => e.id === 's-text'), enabled: true}];
+  if (!(Number(p.rev) >= 8) && entries.length) {
+    const missing = DEFAULT_CHAT_ENTRIES.filter(e => ['f-picture'].includes(e.id) && !entries.some(x => x.id === e.id));
+    entries = [...entries, ...missing.map(e => ({...e, enabled: true}))];
+  }
+  if (!(Number(p.rev) >= 9) && entries.length) {
+    const missing = DEFAULT_CHAT_ENTRIES.filter(e => ['busy'].includes(e.id) && !entries.some(x => x.id === e.id));
+    entries = [...entries, ...missing.map(e => ({...e, enabled: true}))];
+  }
   if (!(Number(p.rev) >= 5) && entries.length) {
     entries = entries.map(e => OLD_RULES[e?.id] && e.text === OLD_RULES[e.id] ? {...e, text: DEFAULT_CHAT_ENTRIES.find(x => x.id === e.id).text} : e);
   }

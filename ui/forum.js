@@ -4,6 +4,7 @@ import {rowWindow} from './row-window.js';
 import {createView, esc, btn, field, input, textArea, heading, avatar, empty, menu} from './common.js';
 import {icon} from './icons.js';
 import {shareToChat} from './share-to-chat.js';
+import {previewBlob} from './thumbs.js';
 
 function ago(at) {
   const s = (Date.now() - at) / 1000;
@@ -26,6 +27,28 @@ export function forumApp(ctx) {
   const face = (who, size) => who === 'me' ? avatar(myName(), 'none', size, 'me') : avatar(who, ctx.engineOf(who), size);
   const badge = (who, roles) => who === 'me' ? '<span class="forum-tag me">我</span>' : roles.has(who) ? '<span class="forum-tag">角色</span>' : '';
   const busy = () => api.forumBusy?.();
+  // 帖子配图：懒加载中间尺寸的图，避免一次解码整页大图。
+  const urls = new Map();
+  async function loadPhotos(root = v.root) {
+    for (const img of root.querySelectorAll('img[data-photo]')) {
+      const id = img.dataset.photo;
+      if (!id || img.src || urls.has(id)) continue;
+      try {
+        const blob = await previewBlob(api, id);
+        if (!blob) continue;
+        const url = ctx.win.URL.createObjectURL(blob);
+        urls.set(id, url);
+        if (img.isConnected) img.src = url;
+      } catch {}
+    }
+  }
+  function picture(p) {
+    if (p.photoId) return `<button type="button" class="forum-photo" data-action="forum-view-photo" data-id="${esc(p.id)}"><img data-photo="${esc(p.photoId)}" alt="${esc(nameOf(p.author))} 的配图"></button>`;
+    if (!p.imageTags) return '';
+    if (p.imageState === 'waiting') return '<p class="moment-note">配图正在画……</p>';
+    if (p.imageState === 'failed') return `<button type="button" class="moment-note" data-action="forum-draw" data-id="${esc(p.id)}">${esc(p.imageNote || '配图没画出来')} · 点一下重画</button>`;
+    return `<button type="button" class="moment-note" data-action="forum-draw" data-id="${esc(p.id)}">这条帖子有配图 · 点一下画出来</button>`;
+  }
 
   function card(p, roles) {
     return `<button type="button" class="forum-card" data-action="open-post" data-id="${esc(p.id)}">
@@ -57,7 +80,7 @@ export function forumApp(ctx) {
     const roles = characters();
     v.draw(heading('帖子', '', 'Forum')
       + `<article class="forum-post"><div class="forum-author">${face(p.author, 36)}<b>${esc(nameOf(p.author))}</b>${badge(p.author, roles)}<time>${ago(p.at)}</time></div>
-        ${p.title ? `<h3 class="forum-title">${esc(p.title)}</h3>` : ''}<p class="forum-text">${esc(p.text)}</p>
+        ${p.title ? `<h3 class="forum-title">${esc(p.title)}</h3>` : ''}<p class="forum-text">${esc(p.text)}</p>${picture(p)}
         <div class="forum-meta"><span>${icon('eye')}${count(p.heat)} 热度</span>${btn('forum-like', icon('heart', p.liked) + count(p.likes), 'text-button' + (p.liked ? ' on' : ''), `aria-pressed="${p.liked}" aria-label="${p.liked ? '取消点赞' : '点赞'}"`)}${btn('forum-reply', icon('bubble') + '回复', 'text-button', `data-to=""`)}${btn('forum-more', icon('more'), 'text-button', 'aria-label="转发或删除"')}</div></article>`
       + (busy() ? '<p class="moments-busy" role="status">大家正在回复……</p>' : '')
       + `<div class="forum-floors">${p.replies.map((r, i) => `<button type="button" class="forum-floor" data-action="${r.from === 'me' ? 'forum-my-reply' : 'forum-reply'}" data-to="${esc(r.from)}" data-reply="${esc(r.id)}">
@@ -66,7 +89,9 @@ export function forumApp(ctx) {
   }
   async function render() {
     const ticket = ++epoch;
-    return open ? renderPost(ticket) : renderList(ticket);
+    await (open ? renderPost(ticket) : renderList(ticket));
+    if (v.disposed || ticket !== epoch) return;
+    loadPhotos();
   }
 
   /** Runs a model request in the background; the app shows it as busy and redraws when it ends. */
@@ -142,6 +167,7 @@ export function forumApp(ctx) {
       case 'net-names': netNames(); break;
       case 'open-post': open = el.dataset.id; await render(); v.root.scrollTop = 0; break;
       case 'forum-like': { const p = post || await api.getForumPost(open); if (p) { await api.likeForum(open, !p.liked); await render(); } break; }
+      case 'forum-draw': { const p = post || await api.getForumPost(open); if (p) background(api.forumDrawImage(open)); break; }
       case 'forum-reply': replyTo(el.dataset.to || ''); break;
       case 'forum-my-reply': if (await ctx.confirm('删除这条回复？')) { await api.deleteForumReply(open, el.dataset.reply); await render(); } break;
       // 0.9.35: 转发 to a chat (论坛 × 聊天) and 删除 live under ⋯.

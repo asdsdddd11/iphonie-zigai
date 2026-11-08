@@ -66,6 +66,8 @@ export function createMomentsHost({context, settings, backend, notice, memory = 
       if (!found.posts.length) throw Error('这次没有收到新动态，可以再刷新一次');
       const posts = await backend.momentsMutate(() => backend.moments.add(found.posts.map(p => ({...p, space, ...(save ? {save} : {}), source: auto ? 'auto' : 'manual', imageState: p.imageTags && s.moments.images ? 'waiting' : undefined}))));
       drawNew(posts);
+      // 生活记忆：朋友圈刷新后，把每个人的动态压缩进生活摘要。
+      try { for (const author of new Set(posts.map(p => p.author))) if (author && author !== 'me') memory?.tidyLife?.(author).catch(() => {}); } catch {}
       return posts;
     });
   }

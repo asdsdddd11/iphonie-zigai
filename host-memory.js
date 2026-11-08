@@ -3,8 +3,8 @@
 // layers and the older messages that match what is being talked about now. Writing uses the 文字模型 and costs one
 // request per summary; searching is local unless a 向量模型 is set up.
 import {currentDm} from './core/chats.js';
-import {nextBatch, nextMerge, addNode, buildMemoryRequest, parseMemory, memoryText, chunks, recall, recallText, textKey, transcript, roots, storyMemoryText, unwritten, STORY_MEMORY} from './core/memory.js';
-import {activeChatPreset} from './core/chat.js';
+import {nextBatch, nextMerge, addNode, buildMemoryRequest, parseMemory, memoryText, chunks, recall, recallText, textKey, transcript, roots, storyMemoryText, unwritten, STORY_MEMORY, levelName, span} from './core/memory.js';
+import {activeChatPreset, inSpace} from './core/chat.js';
 
 // How many requests one go may make: after a reply only a little (a long backlog is caught up over several replies),
 // when the user asks for it more.
@@ -210,9 +210,83 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
     return found;
   }
 
+  // ---------- 生活记忆：朋友圈动态 + 论坛发言 + 查手机快照，压缩成摘要存进 life book（threadId = 'life:名字'） ----------
+  const lifeBook = name => 'life:' + name;
+  /** 拉取一个角色的全部生活内容（朋友圈、论坛发言、查手机快照），拼成待压缩的文本。 */
+  async function lifeSource(name) {
+    const parts = [];
+    try {
+      const here = backend.here?.();
+      const moments = (await backend.moments.list()).filter(p => p.author === name && p.text && (!here || inSpace(p, here)));
+      if (moments.length) parts.push('朋友圈：\n' + moments.slice(-6).map(p => `- ${p.text}`).join('\n'));
+    } catch {}
+    try {
+      const peek = (await backend.apps.list('peek')).find(p => p.name === name);
+      if (peek) {
+        const lines = [];
+        if (peek.notes?.length) lines.push(`备忘录：${peek.notes.map(n => n.title ? `${n.title}：${n.text}` : n.text).join('；')}`);
+        if (peek.cart?.length) lines.push(`想买：${peek.cart.map(c => `${c.name}${c.note ? '（' + c.note + '）' : ''}`).join('、')}`);
+        if (peek.searches?.length) lines.push(`搜过：${peek.searches.join('、')}`);
+        if (peek.chats?.length) lines.push(`和别人聊：${peek.chats.map(c => `${c.with}（${c.lines.slice(-2).map(l => `${l.from}：${l.text}`).join('；')}）`).join('；')}`);
+        if (lines.length) parts.push('手机里的生活：\n' + lines.map(l => `- ${l}`).join('\n'));
+      }
+    } catch {}
+    try {
+      const here = backend.here?.();
+      const forum = (await backend.apps.list('forum')).filter(p => !here || inSpace(p, here));
+      const forumLines = [];
+      for (const p of forum) {
+        if (p.author === name) forumLines.push(`发帖「${p.title || '（无标题）'}」：${p.text}`);
+        for (const r of (p.replies || [])) if (r.from === name) forumLines.push(`在「${p.title || '（无标题）'}」下回复：${r.text}`);
+      }
+      if (forumLines.length) parts.push('论坛发言：\n' + forumLines.slice(-8).map(l => `- ${l}`).join('\n'));
+    } catch {}
+    return parts.join('\n\n');
+  }
+  async function tidyLife(name) {
+    if (!options().enabled) return 0;
+    const text = await lifeSource(name);
+    if (!text) return 0;
+    const book = await backend.memoryBook(lifeBook(name));
+    // 1. 新的 level 0 生活摘要（累积，不覆盖旧摘要）
+    const prompt0 = [
+      {role: 'system', content: `你在整理${name}的朋友圈动态、论坛发言和生活记录，写成一段以后能直接拿来接着聊的生活摘要（300 到 500 字）。要留下：TA 发的朋友圈和论坛发言、TA 手机里记的事（备忘录、想买的东西、搜过什么、和谁在聊什么）、TA 的喜好、习惯、近况、心情。只整理不编造，直接写正文，不要标题。`},
+      {role: 'user', content: `生活记录：\n${text.slice(0, 6000)}`},
+    ];
+    const summary = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: prompt0, trimNames: false}));
+    await backend.memoryChange(lifeBook(name), current => addNode(current, {level: 0, text: summary, from: Date.now(), to: Date.now(), count: 1}), name, book);
+    let written = 1;
+    // 2. 攒够了就向上合并（3 条 level 0 → 1 条 level 1，更高层 4 条 → 下一层），和聊天记忆同一套逻辑。
+    for (let step = 0; step < 2 && !closed; step++) {
+      const current = await backend.memoryBook(lifeBook(name));
+      const merge = nextMerge(current, {stage: 3, epic: 4});
+      if (!merge) break;
+      const mprompt = [
+        {role: 'system', content: `你在整理${name}的生活记忆：把下面几段按时间排好的${levelName(merge.level - 1)}合成一份「${levelName(merge.level)}」（${merge.level === 1 ? '400 到 700 字' : '400 到 900 字'}）。先按时间说清这段时间里的主线和转折，再写：TA 的近况、喜好、习惯、没解决的事。前后矛盾时以后面的为准。细节宁可多留，不要只写空泛的总结。只根据下面的内容写，不编造。直接写正文，不要标题。`},
+        {role: 'user', content: merge.nodes.map(n => `【${levelName(n.level)} · ${span(n.from, n.to)}】\n${n.text}`).join('\n\n')},
+      ];
+      const mtext = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: mprompt, trimNames: false}));
+      await backend.memoryChange(lifeBook(name), cur => addNode(cur, {level: merge.level, text: mtext, covers: merge.nodes.map(n => n.id)}), name, current);
+      written++;
+    }
+    return written;
+  }
+  async function lifeContext(name, {cap = 1000} = {}) {
+    const book = await backend.memoryBook(lifeBook(name));
+    const list = roots(book);
+    if (!list.length) return '';
+    const keep = new Set();
+    let used = 0;
+    for (const n of list.slice().sort((a, b) => b.level - a.level || a.from - b.from)) {
+      const cost = n.text.length + 30;
+      if (used + cost > cap && keep.size) continue;
+      keep.add(n.id); used += cost;
+    }
+    return `【${name}的生活】（朋友圈、论坛和手机里的事，按时间整理成的）\n` + list.filter(n => keep.has(n.id)).map(n => `- ${levelName(n.level)}（${span(n.from, n.to)}）：${n.text}`).join('\n');
+  }
   return {
     storyMemory, storySources,
-    tidy, after, contextFor, aboutPeople, storyPlan, storyReady, refreshStory,
+    tidy, after, contextFor, aboutPeople, storyPlan, storyReady, refreshStory, tidyLife, lifeContext,
     status: threadId => ({...status.get(threadId), busy: busy.has(threadId), ...(storyError ? {storyError} : {})}),
     close() { closed = true; clearTimeout(storyTimer); unsubscribe?.(); }
   };
