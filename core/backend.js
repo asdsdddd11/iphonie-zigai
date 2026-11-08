@@ -63,6 +63,7 @@ import { CloudQueue, KeyHashQueue, newRoomCode, validRoom, sha256Hex } from './c
 import { vibeKey, vibeMode, vibeReady, readVibeFile, imageVibe, encodingVibe, mergeVibe, encodingFor, withEncoding, vibeSummary, vibeParameters, rawVibeParameters, encodingsOnly, embedVibeFile, embeddedVibeFile, singleFile, bundleFile, chatu8File, extracted as vibeExtracted, strength as vibeStrength, MAX_FREE_VIBES } from './vibes.js';
 import { importGlobalPreset, exportGlobalPreset, resetGlobalPreset } from './global-preset.js';
 import { BUILTIN_PRESET } from './global-preset-builtin.js';
+import { normalizeRootState, defaultRootState } from './root.js';
 /** 全局预设破甲词: 附加到每次文字请求的 system 层最前面。 */
 function injectJailbreak(request, preset) {
     const jailbreak = preset?.enabled !== false ? String(preset?.jailbreak || '').trim() : '';
@@ -3079,6 +3080,21 @@ export class TTSBackend {
      *  looked at under (spaceKey() when the look began; the tavern may have moved to another card while it was written). */
     async savePeek(snapshot, space = this.spaceKey()) { const doc = cleanPeek({ ...snapshot, space }, Date.now()); return (await this.appsMutate('peek', () => this.apps.put([doc])))[0]; }
 
+    // ---------- 根源重塑 ----------
+    /** 根源重塑 App 的线上状态库（单文档，kind='root'）。 */
+    async rootState() {
+        const doc = await this.apps.get('root:state');
+        return doc?.state ? normalizeRootState(doc.state) : defaultRootState();
+    }
+    /** 合并保存线上状态（patch 合并进现有状态）。 */
+    async saveRoot(patch) {
+        const current = await this.rootState();
+        const merged = normalizeRootState({ ...current, ...patch });
+        await this.appsMutate('root', () => this.apps.put([{ id: 'root:state', kind: 'root', at: Date.now(), state: merged }]));
+        this.emit('root', {});
+        return merged;
+    }
+
     /** Runs a change to the moments and tells the phone. */
     async momentsMutate(task) {
         this.assertOpen();
@@ -3610,7 +3626,7 @@ export class TTSBackend {
                 next.promptRules = normalizePromptRules(next.promptRules);
                 this.save(next);
             },
-            ...songFacade(this), getState: () => this.getState(), readState: () => { this.assertOpen(); return this.settings; }, getSnapshot: () => this.getSnapshot(), save: (next, revision) => this.save(next, revision),
+            ...songFacade(this), getState: () => this.getState(), rootState: () => this.rootState(), saveRoot: patch => this.saveRoot(patch || {}), readState: () => { this.assertOpen(); return this.settings; }, getSnapshot: () => this.getSnapshot(), save: (next, revision) => this.save(next, revision),
             saveGlobalPreset: patch => { const next = this.getState(); const base = next.globalPreset || { enabled: true, jailbreak: '' }; next.globalPreset = { enabled: patch?.enabled !== false, jailbreak: String(patch?.jailbreak ?? base.jailbreak ?? '').slice(0, 20000) }; this.save(next); return clone(next.globalPreset); },
             importGlobalPreset: json => { const next = importGlobalPreset(this.getState(), json); this.save(next); return clone(next.globalPreset); },
             exportGlobalPreset: () => exportGlobalPreset(this.getState()),

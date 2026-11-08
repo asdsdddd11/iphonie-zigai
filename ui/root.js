@@ -1,4 +1,4 @@
-// 根源重塑 App：壳子（复现阶段——两级导航骨架 + 假数据占位）。
+// 根源重塑 App：线上独立于正文。阶段 1 —— 读真实状态库（api.rootState），假数据换成真数据。
 // 底部 4 个主栏目：猎场 / 马厩 / 工坊 / 我的；每个主栏目内上栏切子页。
 import {createView, esc, btn, heading, groupTitle, empty} from './common.js';
 import {icon} from './icons.js';
@@ -9,6 +9,8 @@ const TABS = [
   ['workshop', '工坊', [['locations', '地点'], ['items', '物品']]],
   ['me', '我的', [['account', '账号与晋升'], ['rules', '配种者守则'], ['settings', '设置']]],
 ];
+const LEVELS = {1: '体验者', 2: '播种机', 3: '调教师', 4: '处刑官', 4.5: '准牧场主', 5: '牧场主'};
+const STAGES = {0: '未调教', 1: '初诊期', 2: '崩坏期', 3: '成瘾期', 4: '改写期', 5: '重塑期'};
 
 export function rootApp(ctx) {
   const {api} = ctx, v = createView(ctx, 'root');
@@ -28,60 +30,45 @@ export function rootApp(ctx) {
       `<button type="button" data-action="root-sub" data-sub="${id}" aria-pressed="${sub === id}">${name}</button>`).join('')}</div>`;
   }
 
-  // 假数据占位
-  function huntFeed() {
-    const rows = [
-      {name: '林奕川', rating: '原矿', tags: '#体育生 #19岁 #阳痿', text: '大一体育生，最近总觉得自己不行，求大佬指点。'},
-      {name: '萧战', rating: '精雕', tags: '#退役特种兵 #精雕 #傲娇', text: '退役特种兵，肌肉能夹死你，但前列腺比谁都敏感。'},
-      {name: '阿尔法', rating: '宝玉', tags: '#兽人 #Alpha #指挥官', text: '军团指挥官，信息素暴走，求二次觉醒。'},
-    ];
-    return `<div class="group">${rows.map(r => `<button class="list-row" data-action="root-open" data-name="${esc(r.name)}"><span><strong>${esc(r.name)}</strong><small>${esc(r.rating)} · ${esc(r.tags)}</small><small>${esc(r.text)}</small></span>${icon('next')}</button>`).join('')}</div>`;
+  function targetRow(id, t) {
+    const p = t.基础档案, b = t.配种信息;
+    return `<button class="list-row" data-action="root-open" data-id="${esc(id)}"><span><strong>${esc(p.姓名 || '未命名')}</strong><small>${esc(p.评级 || '原矿')} · ${esc(STAGES[b.开发阶段] || '未调教')} · ${esc(p.职业 || '')}</small><small>${esc(p.疾病 || '')} · ${esc(p.尺寸描述 || '')}</small></span>${icon('next')}</button>`;
   }
 
-  function locations() {
-    const rows = [
-      {name: '隔音私人诊室', cost: 20, level: 1},
-      {name: '深夜体育馆更衣室', cost: 100, level: 2},
-      {name: '双面镜审讯室', cost: 800, level: 3},
-      {name: '商场无性别公厕', cost: 5000, level: 4},
-      {name: '活体家具展示厅', cost: 0, level: 5},
-    ];
-    return `<div class="group">${rows.map(r => `<button class="list-row" data-action="root-open" data-name="${esc(r.name)}"><span><strong>${esc(r.name)}</strong><small>Lv.${r.level} · ${r.cost === 0 ? '免费' : r.cost + ' 积分'}</small></span>${icon('next')}</button>`).join('')}</div>`;
-  }
-
-  function items() {
-    const rows = [
-      {name: '医用级冷钢扩肛器', cost: 10, dev: 1},
-      {name: '高频电击共振跳蛋', cost: 50, dev: 2},
-      {name: '前列腺高潮电击仪', cost: 400, dev: 3},
-      {name: '工业级全自动抽插机', cost: 2500, dev: 4},
-      {name: '脑神经快感重塑头盔', cost: 0, dev: 5},
-    ];
-    return `<div class="group">${rows.map(r => `<button class="list-row" data-action="root-open" data-name="${esc(r.name)}"><span><strong>${esc(r.name)}</strong><small>开发 Lv.${r.dev} · ${r.cost === 0 ? '免费' : r.cost + ' 积分'}</small></span>${icon('next')}</button>`).join('')}</div>`;
-  }
-
-  function account() {
-    return `<div class="group pad">
-      <p class="hint">假数据占位：账户与晋升、资金、积分后续接入。</p>
-      <div class="list-row"><span><strong>等级</strong><small>体验者</small></span></div>
-      <div class="list-row"><span><strong>资金</strong><small>¥0</small></span></div>
-      <div class="list-row"><span><strong>积分</strong><small>0</small></span></div>
-    </div>`;
-  }
-
-  function renderPage() {
-    if (sub === 'hunt-feed') return groupTitle('猎场信息流') + huntFeed() + `<p class="hint" style="margin:8px">壳子阶段：假数据，刷新 / 搜索 / 聊天后续接入。</p>`;
-    if (sub === 'locations') return groupTitle('工坊 · 地点') + locations();
-    if (sub === 'items') return groupTitle('工坊 · 物品') + items();
-    if (sub === 'account') return groupTitle('账号与晋升') + account();
+  function renderPage(state) {
+    if (sub === 'hunt-feed') {
+      const list = Object.entries(state.猎物库 || {});
+      return groupTitle('猎场信息流')
+        + (list.length ? `<div class="group">${list.map(([id, t]) => targetRow(id, t)).join('')}</div>`
+          : `<div class="group pad">${empty('还没有猎物', '刷新功能下一阶段接入，先把状态库跑通。', 'compass')}</div>`);
+    }
+    if (sub === 'my-stable') {
+      const ids = state.马厩 || [];
+      const list = ids.map(id => [id, state.猎物库?.[id]]).filter(([, t]) => t);
+      return groupTitle('我的便器')
+        + (list.length ? `<div class="group">${list.map(([id, t]) => targetRow(id, t)).join('')}</div>`
+          : `<div class="group pad">${empty('还没有收下的便器', '猎场里锁定的目标，线下调教后会进马厩。', 'house')}</div>`);
+    }
+    if (sub === 'account') {
+      const u = state.用户 || {};
+      return groupTitle('账号与晋升')
+        + `<div class="group pad">
+            <div class="list-row"><span><strong>名称</strong><small>${esc(u.名称 || '未设置')}</small></span></div>
+            <div class="list-row"><span><strong>等级</strong><small>${esc(LEVELS[u.等级] || u.等级 || '')}</small></span></div>
+            <div class="list-row"><span><strong>资金</strong><small>¥${esc(u.资金 ?? 0)}</small></span></div>
+            <div class="list-row"><span><strong>积分</strong><small>${esc(u.积分 ?? 0)}</small></span></div>
+          </div>`;
+    }
     if (sub === 'rules') return groupTitle('配种者守则') + `<div class="group pad"><p class="hint">行为保密、开发原则、积分系统、便器评级、开发程度、晋升条例——后续从世界书同步。</p></div>`;
-    return groupTitle(subName(sub)) + `<div class="group pad">${empty('还在搭壳子', '这个页面先占位，功能后续逐个接入。', 'bubble')}</div>`;
+    if (sub === 'locations' || sub === 'items') return groupTitle(subName(sub)) + `<div class="group pad">${empty('工坊待接入', '地点和物品后续阶段接进来。', 'wrench')}</div>`;
+    return groupTitle(subName(sub)) + `<div class="group pad">${empty('还在搭', '这个页面先占位。', 'bubble')}</div>`;
   }
 
-  function render() {
-    v.draw(heading('根源重塑', btn('root-refresh', icon('refresh'), 'round-button', 'aria-label="刷新（占位）"'), 'Root Rebirth')
+  async function render() {
+    const state = await api.rootState().catch(() => null) || {};
+    v.draw(heading('根源重塑', btn('root-refresh', icon('refresh'), 'round-button', 'aria-label="刷新（后续接入）"'), 'Root Rebirth')
       + subTabs()
-      + renderPage()
+      + renderPage(state)
       + bottomTabs());
   }
 
@@ -89,8 +76,8 @@ export function rootApp(ctx) {
     const action = el.dataset.action;
     if (action === 'root-tab') { tab = el.dataset.tab; sub = tabDef()[2][0][0]; render(); }
     else if (action === 'root-sub') { sub = el.dataset.sub; render(); }
-    else if (action === 'root-refresh') ctx.notify('刷新功能后续接入');
-    else if (action === 'root-open') ctx.notify(`「${el.dataset.name}」的详情后续接入`);
+    else if (action === 'root-refresh') ctx.notify('猎场刷新下一阶段接入');
+    else if (action === 'root-open') ctx.notify('目标档案后续接入');
   });
 
   render();
