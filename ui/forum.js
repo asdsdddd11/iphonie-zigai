@@ -34,9 +34,9 @@ export function forumApp(ctx) {
   const urls = new Map();
   const urlFor = async id => {
     if (urls.has(id)) return urls.get(id);
-    const blob = await previewBlob(api, id);
-    if (!blob) throw Error('这张配图找不到了');
-    const url = ctx.win.URL.createObjectURL(blob);
+    const photo = await api.getPhoto(id);
+    if (!photo?.blob) throw Error('这张配图找不到了');
+    const url = ctx.win.URL.createObjectURL(photo.blob);
     urls.set(id, url);
     return url;
   };
@@ -46,10 +46,9 @@ export function forumApp(ctx) {
       if (!id || img.src || urls.has(id)) continue;
       try {
         const blob = await previewBlob(api, id);
-        if (!blob) continue;
-        const url = ctx.win.URL.createObjectURL(blob);
-        urls.set(id, url);
-        if (img.isConnected) img.src = url;
+        const src = blob ? ctx.win.URL.createObjectURL(blob) : await urlFor(id);
+        urls.set(id, src);
+        if (img.isConnected) img.src = src;
       } catch {}
     }
   }
