@@ -19,6 +19,8 @@ import {normalizePets} from './pets.js';
 
 /** Another plugin's picture prompt kept in a reply (柏宝绘's <bbi_image>): not story, left out whole. */
 const OTHER_PICTURE_BLOCKS = new RegExp(`<(${OTHER_PICTURES.join('|')})\\b[^>]*>[\\s\\S]*?(?:<\\/\\1\\s*>|$)`, 'gi');
+/** 根源重塑等角色卡的数据块：正文末尾输出的 XML/JSON 进度数据，不是剧情，整个去掉，别发给手机模型。 */
+const DATA_BLOCKS = /<(BreederApp|UpdateVariable|root-status|root_state)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)|<StatusPlaceHolderImpl\s*\/?>/gi;
 
 const PERIODS = [[5, '凌晨'], [8, '早上'], [11, '上午'], [13, '中午'], [17, '下午'], [19, '傍晚'], [24, '晚上']];
 /** How long `ms` is, said the way people say it: 40 分钟, 3 个小时, 2 天, 3 个月. */
@@ -947,6 +949,7 @@ export function plainStory(textValue) {
     .replace(/<(sfx|ambience)\b[^>]*>[^<>]*<\/\1\s*>/gi, '')
     .replace(/<img\b[^>]*>[^<]*<\/img\s*>|<img\b[^>]*>/gi, '')
     .replace(OTHER_PICTURE_BLOCKS, ' ')
+    .replace(DATA_BLOCKS, ' ')
     .replace(/<[^>]+>/g, '')
     .replace(/\s+/g, ' ')
     .trim();
