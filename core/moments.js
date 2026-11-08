@@ -106,20 +106,24 @@ export function parseMoments(reply, {names, user = '我', mode = 'posts'}) {
 // long reply stopped mid-sentence), and the newest come first until `total` is used up.
 export const STORY_LIMITS = Object.freeze({each: 4000, total: 20000});
 // limit: how many replies, or a chat preset (its context, storyEach and storyTotal; 0 there is no limit).
-export function storyLines(chat, limit, user, {each = STORY_LIMITS.each, total = STORY_LIMITS.total} = {}) {
-  if (limit && typeof limit === 'object') { const p = limit; limit = p.context; each = p.storyEach ?? each; total = p.storyTotal ?? total; }
+export function storyLines(chat, limit, user, {each = STORY_LIMITS.each, total = STORY_LIMITS.total, filter} = {}) {
+  if (limit && typeof limit === 'object') { const p = limit; limit = p.context; each = p.storyEach ?? each; total = p.storyTotal ?? total; filter = p.storyFilter ?? filter; }
   each = each || Infinity; total = total || Infinity;
   const out = [];
   let used = 0;
   for (let i = (chat?.length || 0) - 1; i >= 0 && out.length < limit; i--) {
     const m = chat[i];
     if (!m || m.is_system) continue;
-    let said = plainStory(m.mes);
+    const name = m.name || (m.is_user ? user : '旁白');
+    if (filter?.onlyNames?.length && !filter.onlyNames.includes(name)) continue;
+    if (filter?.excludeNames?.includes(name)) continue;
+    let said = plainStory(m.mes, filter?.excludeTags);
     if (!said) continue;
+    if (filter?.excludeWords?.length && filter.excludeWords.some(w => said.includes(w))) continue;
     if (said.length > each) said = said.slice(0, each) + '……';
     if (out.length && used + said.length > total) break;
     used += said.length;
-    out.unshift({name: m.name || (m.is_user ? user : '旁白'), text: said});
+    out.unshift({name, text: said});
   }
   return out;
 }

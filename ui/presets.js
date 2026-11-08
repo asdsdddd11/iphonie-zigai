@@ -274,6 +274,8 @@ export function presetsApp(ctx) {
       ? fold('preset-read', '读多少', `正文 ${p.context} 条 · 聊天 ${p.history} 条`,
           `${field('读取最近的正文', input('context', p.context, 'number', 'min="0" max="100" step="1"'), '回消息时参考最近几条正文，0 表示不看剧情。')}${field('读取聊天记录', input('history', p.history, 'number', 'min="2" max="500" step="1"'), '回消息时带上最近多少条手机聊天。')}
           ${field('每条正文最多（字）', input('storyEach', p.storyEach ?? 4000, 'number', 'min="0" step="500"'), '一条正文太长时只取前面这么多字。0 表示不限制。中文大约一个字一个 token。')}${field('正文一共最多（字）', input('storyTotal', p.storyTotal ?? 20000, 'number', 'min="0" step="1000"'), '最近的正文优先，加起来超过这么多字就不再往前读。0 表示不限制。')}
+          ${field('只读这些人的正文（空=全部）', textArea('storyFilter.onlyNames', (p.storyFilter?.onlyNames || []).join('\n'), 'rows="2"'), '一行一个名字。空着就是所有人的正文都读。')}${field('不读这些人的正文', textArea('storyFilter.excludeNames', (p.storyFilter?.excludeNames || []).join('\n'), 'rows="2"'), '一行一个名字，这些人的正文不发给手机模型。')}
+          ${field('不读含这些词的正文', textArea('storyFilter.excludeWords', (p.storyFilter?.excludeWords || []).join('\n'), 'rows="2"'), '一行一个词，整条正文含有这个词就不读。')}${field('不读这些标签块', textArea('storyFilter.excludeTags', (p.storyFilter?.excludeTags || []).join('\n'), 'rows="2"'), '一行一个标签名（不带尖括号），这些标签整段去掉。默认已经排除常见数据块。')}
           ${field('每次刷新朋友圈最多几条', input('posts', p.posts ?? 2, 'number', 'min="1" max="5" step="1"'), '在动态里刷新时，由模型挑 1 到这么多个人发动态。')}`)
         + fold('preset-lore', '世界书', p.lore === false ? '不带' : loreLine(p),
           `${toggle('lore', '带上世界书', p.lore !== false, '聊天、电话、朋友圈、论坛和查手机按触发条件带上酒馆的世界书：和写正文时一样，常驻的条目，以及在名字、最近的正文和聊天里触发关键词的条目（当前角色卡的世界书、全局和聊天绑定的世界书都算）。人设写在世界书里的话要打开。\n\n条目多的话会多占一些上下文。')}${p.lore !== false ? loreFields(p) + field('世界书最多（字）', input('loreMax', p.loreMax ?? 30000, 'number', 'min="0" step="1000"'), '手机读世界书时最多放这么多字，只放整条。0 表示插件不另外限制，只按酒馆「世界书」设置里的预算（占上下文的百分比）来。手机的每次请求（聊天、朋友圈、论坛、查手机、电话）都按这些条件读取世界书，放得越多越费 token，也越慢。') : ''}`)
@@ -354,6 +356,7 @@ export function presetsApp(ctx) {
       if (key === 'customInjection') { if (el.checked) entry.injection = structuredClone(current.injection); else delete entry.injection; }
       else entry[key] = el.type === 'checkbox' ? el.checked : el.value;
     } else if (key.startsWith('memory.')) { current.memory = {...current.memory}; current.memory[key.slice(7)] = el.type === 'checkbox' ? el.checked : Number(el.value); }
+    else if (key.startsWith('storyFilter.')) { current.storyFilter = {...(current.storyFilter || {})}; current.storyFilter[key.slice(12)] = el.value; }
     else current[key] = el.type === 'checkbox' ? el.checked : el.value;
     mark();
     if (redraw) render();

@@ -85,9 +85,10 @@ const DEFAULT_INJECTION = {position: 'in_chat', depth: 1, role: 'system'};
 // rev 7 (0.7.3): characters text the user from the story; presets made earlier get 正文里主动发消息 once.
 // rev 8: 论坛配图; presets made earlier get 论坛配图 once.
 // rev 9: 忙的时候不玩手机; presets made earlier get it once.
-const PRESET_REV = 9;
+// rev 10: 正文过滤 (onlyNames/excludeNames/excludeWords/excludeTags); presets made earlier get it once.
+const PRESET_REV = 10;
 const OLD_RULES = Object.freeze({style: '你在一个手机聊天软件里，以联系人本人的身份回复{{用户}}。像真的在发手机消息：口语、简短，一次发一到三条，每条一两句话。可以用语气词和颜文字，不写动作、旁白和心理描写，不加引号。', group: '群聊里每次由一到三位成员接话，谁接话看话题和各自性格，成员之间也可以互相回应、吐槽。', 'c-style': '你在和{{用户}}打语音电话，说的每一句都会被念出来。像真人打电话一样说话：口语、句子短，一次说一到三句；会接话、会反问，会有停顿和语气词。身边发生的小事用说的话带出来（比如「等一下，我这边有点吵」），不写动作、旁白、心理描写和表情符号。守住人设和你们的关系，最近的剧情和聊天可以自然提起。'});
-const DEFAULT_PRESET = {id: 'default', name: '日常短信', rev: PRESET_REV, context: 6, history: 30, storyEach: 4000, storyTotal: 20000, loreMax: 30000, posts: 2, lore: true, loreSkipBooks: [], loreSkipEntries: [], loreExtraBooks: [], cleanTags: [], bring: DEFAULT_BRING, injection: DEFAULT_INJECTION, entries: DEFAULT_CHAT_ENTRIES.map(e => ({...e, enabled: true}))};
+const DEFAULT_PRESET = {id: 'default', name: '日常短信', rev: PRESET_REV, context: 6, history: 30, storyEach: 4000, storyTotal: 20000, loreMax: 30000, posts: 2, lore: true, loreSkipBooks: [], loreSkipEntries: [], loreExtraBooks: [], cleanTags: [], storyFilter: {onlyNames: [], excludeNames: [], excludeWords: [], excludeTags: []}, bring: DEFAULT_BRING, injection: DEFAULT_INJECTION, entries: DEFAULT_CHAT_ENTRIES.map(e => ({...e, enabled: true}))};
 
 // How voice messages read in the phone: only the voice bar until the user asks for 转文字 (or `auto`),
 // then the translation, the original line, or both.
@@ -108,6 +109,8 @@ const count = (value, min, max, fallback) => { const n = Math.round(Number(value
 export const tagList = value => [...new Set((Array.isArray(value) ? value : String(value ?? '').split(/[\s,，、;；]+/))
   .map(t => String(t).trim().replace(/^<\/?|\/?>$/g, '')).filter(t => /^[\w\u4e00-\u9fff:.-]{1,40}$/.test(t)))].slice(0, 30);
 const lineList = (value, max = 100) => [...new Set((Array.isArray(value) ? value : String(value ?? '').split(/\r?\n/)).map(t => String(t).trim().slice(0, 200)).filter(Boolean))].slice(0, max);
+/** 正文过滤：只读谁、不读谁、不读含哪些词的正文、不读哪些标签块。 */
+const normalizeStoryFilter = f => ({onlyNames: lineList(f?.onlyNames, 60), excludeNames: lineList(f?.excludeNames, 60), excludeWords: lineList(f?.excludeWords, 60), excludeTags: lineList(f?.excludeTags, 60)});
 const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** Takes out <tag …>…</tag> blocks (and <tag/>) of the given names, then collapses the blank lines left behind. */
 export function cleanTagged(text, tags) {
@@ -171,6 +174,7 @@ export function normalizeChatPreset(p = {}) {
     injection: {...DEFAULT_INJECTION, ...p.injection, depth: count(p.injection?.depth, 0, 10000, DEFAULT_INJECTION.depth)},
     // 记忆: older chat written up in layers and searched (core/memory.js).
     memory: normalizeMemory(p.memory),
+    storyFilter: normalizeStoryFilter(p.storyFilter),
     entries: entries.map(e => ({id: String(e.id || crypto.randomUUID()), title: text(e.title, 80), enabled: e.enabled !== false, text: text(e.text, 20000), use: ruleUse(e)}))
   };
 }
@@ -950,14 +954,17 @@ export function bringText(preset, {thread, messages, user = '我'}) {
 
 /** Removes voice/picture tags and markup from a story message, for the chat prompt. Code blocks, styles and scripts
  *  (the HTML 小剧场 some presets write) are not story: they are left out whole instead of becoming a wall of CSS. */
-export function plainStory(textValue) {
-  return String(textValue || '')
+export function plainStory(textValue, excludeTags = []) {
+  let said = String(textValue || '')
     .replace(/```[\s\S]*?(?:```|$)|<(style|script)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)|<!--[\s\S]*?(?:-->|$)/gi, ' ')
     .replace(/<tts\b[^>]*>[\s\S]*?<\/tts\s*>/gi, '')
     .replace(/<(sfx|ambience)\b[^>]*>[^<>]*<\/\1\s*>/gi, '')
     .replace(/<img\b[^>]*>[^<]*<\/img\s*>|<img\b[^>]*>/gi, '')
     .replace(OTHER_PICTURE_BLOCKS, ' ')
-    .replace(DATA_BLOCKS, ' ')
+    .replace(DATA_BLOCKS, ' ');
+  const extra = (excludeTags || []).map(t => String(t).replace(/[^\w-]/g, '')).filter(Boolean);
+  if (extra.length) said = said.replace(new RegExp(`<(${extra.join('|')})\\b[^>]*>[\\s\\S]*?(?:<\\/\\1\\s*>|$)`, 'gi'), ' ');
+  return said
     .replace(/<[^>]+>/g, '')
     .replace(/\s+/g, ' ')
     .trim();
