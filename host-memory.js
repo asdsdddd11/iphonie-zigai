@@ -237,24 +237,28 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
       const o = options();
       if (!o.enabled) return 0;
       const entries = storyEntries();
-      const book = await backend.memoryBook(storyBookId());
       const keep = Math.max(2, activeChatPreset(settings().chat).context || 2), batch = 20;
-      const done = Number(book.throughAt) || 0;
-      const available = Math.max(0, entries.length - keep);
-      if (available - done < (force ? 4 : batch)) return 0;
-      const slice = entries.slice(done, Math.min(available, done + (force ? batch * 2 : batch)));
-      const lines = slice.map(e => `${e.name}：${e.text}`);
-      if (!lines.length) return 0;
-      const summary = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: [
-        {role: 'system', content: STORY_SUMMARY_PROMPT},
-        {role: 'user', content: `正文：\n${lines.join('\n')}`},
-      ], trimNames: false}));
-      await backend.memoryChange(storyBookId(), cur => {
-        const next = addNode(cur, {level: 0, text: summary, from: Date.now(), to: Date.now(), count: slice.length});
-        next.throughAt = done + slice.length;
-        return next;
-      }, 'story', book);
-      let written = 1;
+      let written = 0;
+      // 分批把积压的正文写进摘要：自动最多 2 批，立即整理最多 4 批（积压多时不用点很多次）。
+      for (let step = 0; step < (force ? 4 : 2); step++) {
+        const book = await backend.memoryBook(storyBookId());
+        const done = Number(book.throughAt) || 0;
+        const available = Math.max(0, entries.length - keep);
+        if (available - done < (force ? 4 : batch)) break;
+        const slice = entries.slice(done, Math.min(available, done + batch));
+        const lines = slice.map(e => `${e.name}：${e.text}`);
+        if (!lines.length) break;
+        const summary = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: [
+          {role: 'system', content: STORY_SUMMARY_PROMPT},
+          {role: 'user', content: `正文：\n${lines.join('\n')}`},
+        ], trimNames: false}));
+        await backend.memoryChange(storyBookId(), cur => {
+          const next = addNode(cur, {level: 0, text: summary, from: Date.now(), to: Date.now(), count: slice.length});
+          next.throughAt = done + slice.length;
+          return next;
+        }, 'story', book);
+        written++;
+      }
       for (let step = 0; step < 2; step++) {
         const current = await backend.memoryBook(storyBookId());
         const merge = nextMerge(current, {stage: 3, epic: 4});
