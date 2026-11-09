@@ -1,6 +1,7 @@
-// 根源重塑 App：独立界面架构——除容器外，不用小手机任何 UI widget（自己写 HTML + CSS）。
-// 顶部：搜索框 + 刷新并列 + 子页签；底部：四栏，抬高避开 home 条；中间内容滚动。
-import {createView, esc} from './common.js';
+// 根源重塑 App：连容器也自己造——不用 createView、不用小手机任何 widget。
+// 自己建 <section class="rt-root">，自己实现 draw / on / busy / refresh / dispose 接口，
+// 样式只作用于 .rt-root，和小手机完全隔离。
+import {esc} from './common.js';
 import {icon} from './icons.js';
 import {previewBlob} from './thumbs.js';
 import {openImageViewer} from '../image-viewer.js';
@@ -14,77 +15,101 @@ const TABS = [
 const LEVELS = {1: '体验者', 2: '播种机', 3: '调教师', 4: '处刑官', 4.5: '准牧场主', 5: '牧场主'};
 const STAGES = {0: '未调教', 1: '初诊期', 2: '崩坏期', 3: '成瘾期', 4: '改写期', 5: '重塑期'};
 
-const R = '.view[data-app=root]';
 const STYLE = `
-${R} { padding: 0 !important; overflow: hidden !important; background: #0a0a0a !important; }
-${R} .rt-app { display: flex; flex-direction: column; height: 100%; width: 100%; color: #e8e8e8; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
-${R} .rt-top { flex: none; padding: 10px 12px 8px; background: #0a0a0a; border-bottom: 1px solid #2a2a2a; }
-${R} .rt-bar { display: flex; gap: 7px; align-items: center; }
-${R} .rt-bar input { flex: 1; min-width: 0; padding: 8px 11px; border-radius: 9px; border: 1px solid #2a2a2a; background: #141414; color: #e8e8e8; font-size: 13px; outline: none; }
-${R} .rt-bar button { padding: 8px 13px; border-radius: 9px; border: 1px solid #c5a47e; background: #1f1f1f; color: #c5a47e; font-size: 13px; white-space: nowrap; font-family: inherit; }
-${R} .rt-bar .rt-sq { width: 36px; padding: 0; height: 36px; display: grid; place-items: center; }
-${R} .rt-backbar { display: flex; align-items: center; gap: 10px; }
-${R} .rt-back { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #2a2a2a; background: #1f1f1f; color: #c5a47e; }
-${R} .rt-backbar b { font-size: 15px; color: #e8e8e8; }
-${R} .rt-tabs { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
-${R} .rt-tabs::-webkit-scrollbar { display: none; }
-${R} .rt-tab { flex: none; padding: 5px 12px; border-radius: 999px; border: 1px solid #2a2a2a; background: #141414; color: #a0a0a0; font-size: 12px; white-space: nowrap; font-family: inherit; }
-${R} .rt-tab[data-on] { background: #c5a47e; color: #0a0a0a; border-color: #c5a47e; font-weight: 700; }
-${R} .rt-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 12px 16px; scrollbar-width: none; }
-${R} .rt-scroll::-webkit-scrollbar { display: none; }
-${R} .rt-dock { flex: none; display: flex; border-top: 1px solid #2a2a2a; background: #0a0a0a; padding: 9px 0 calc(22px + env(safe-area-inset-bottom, 0px)); }
-${R} .rt-dock button { flex: 1; padding: 4px 0; background: none; border: none; color: #666; font-size: 12px; font-family: inherit; }
-${R} .rt-dock button[data-on] { color: #c5a47e; font-weight: 700; }
-${R} .rt-post { background: #141414; border: 1px solid #2a2a2a; border-radius: 13px; padding: 12px; margin: 10px 0; }
-${R} .rt-post-head { display: flex; align-items: center; gap: 10px; }
-${R} .rt-face { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 50%; border: 2px solid #c5a47e; background: #1f1f1f; color: #c5a47e; font-weight: 800; overflow: hidden; }
-${R} .rt-face img { width: 100%; height: 100%; object-fit: cover; }
-${R} .rt-name { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
-${R} .rt-name b { color: #e8e8e8; font-size: 14px; }
-${R} .rt-rating { color: #c5a47e; border: 1px solid #c5a47e; border-radius: 4px; padding: 0 4px; font-size: 10px; }
-${R} .rt-stage { color: #666; font-size: 11px; }
-${R} .rt-text { color: #e8e8e8; margin: 10px 0; line-height: 1.65; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
-${R} .rt-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-${R} .rt-tag { padding: 2px 9px; border-radius: 999px; border: 1px solid #2a2a2a; background: #1f1f1f; color: #c5a47e; font-size: 11px; font-family: inherit; }
-${R} .rt-comments { background: #1f1f1f; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
-${R} .rt-comments p { color: #a0a0a0; margin: 3px 0; font-size: 12.5px; line-height: 1.5; }
-${R} .rt-comments b { color: #c5a47e; }
-${R} .rt-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-${R} .rt-btn2 { padding: 5px 12px; border-radius: 8px; border: 1px solid #2a2a2a; background: #1f1f1f; color: #e8e8e8; font-size: 12px; font-family: inherit; }
-${R} .rt-btn2.gold { border-color: #c5a47e; color: #c5a47e; }
-${R} .rt-btn2.primary { background: #c5a47e; color: #0a0a0a; border-color: #c5a47e; font-weight: 700; }
-${R} .rt-photo img { border: 1px solid #2a2a2a; border-radius: 10px; display: block; max-width: 100%; max-height: 320px; object-fit: cover; margin: 8px 0; }
-${R} .rt-note { color: #a0a0a0; font-size: 12px; padding: 6px 0; font-family: inherit; }
-${R} .rt-empty { text-align: center; color: #666; padding: 40px 12px; font-size: 13px; }
-${R} .rt-empty b { display: block; color: #a0a0a0; font-size: 15px; margin-bottom: 6px; }
-${R} .rt-sec { color: #c5a47e; font-size: 12px; letter-spacing: .1em; margin: 14px 0 6px; font-weight: 700; }
-${R} .rt-profile-head { text-align: center; padding: 16px 0 10px; }
-${R} .rt-profile-avatar { margin: 0 auto 10px; }
-${R} .rt-profile-name { margin: 0; font-size: 21px; color: #e8e8e8; }
-${R} .rt-profile-meta { color: #a0a0a0; font-size: 12.5px; margin-top: 4px; }
-${R} .rt-grid { display: grid; grid-template-columns: auto 1fr; gap: 9px 14px; padding: 14px; background: #141414; border: 1px solid #2a2a2a; border-radius: 11px; margin: 12px 0; }
-${R} .rt-grid .k { color: #666; font-size: 11.5px; }
-${R} .rt-grid .v { color: #e8e8e8; font-size: 13px; }
-${R} .rt-review { color: #a0a0a0; border-left: 2px solid #c5a47e; padding-left: 10px; margin: 8px 0; font-size: 12.5px; line-height: 1.6; }
-${R} .rt-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 12px; background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; margin: 6px 0; width: 100%; text-align: left; font-family: inherit; }
-${R} .rt-row strong { color: #e8e8e8; font-size: 14px; display: block; }
-${R} .rt-row small { color: #a0a0a0; font-size: 11.5px; display: block; margin-top: 2px; }
+.rt-root { position: absolute; inset: 0; display: flex; flex-direction: column; background: #0a0a0a; overflow: hidden; color: #e8e8e8; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; padding: 0; box-sizing: border-box; }
+.rt-root * { box-sizing: border-box; }
+.rt-root .rt-top { flex: none; padding: 10px 12px 8px; background: #0a0a0a; border-bottom: 1px solid #2a2a2a; }
+.rt-root .rt-bar { display: flex; gap: 7px; align-items: center; }
+.rt-root .rt-bar input { flex: 1; min-width: 0; padding: 8px 11px; border-radius: 9px; border: 1px solid #2a2a2a; background: #141414; color: #e8e8e8; font-size: 13px; outline: none; }
+.rt-root .rt-bar button { padding: 8px 13px; border-radius: 9px; border: 1px solid #c5a47e; background: #1f1f1f; color: #c5a47e; font-size: 13px; white-space: nowrap; font-family: inherit; }
+.rt-root .rt-bar .rt-sq { width: 36px; padding: 0; height: 36px; display: grid; place-items: center; }
+.rt-root .rt-backbar { display: flex; align-items: center; gap: 10px; }
+.rt-root .rt-back { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #2a2a2a; background: #1f1f1f; color: #c5a47e; }
+.rt-root .rt-backbar b { font-size: 15px; color: #e8e8e8; }
+.rt-root .rt-tabs { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
+.rt-root .rt-tabs::-webkit-scrollbar { display: none; }
+.rt-root .rt-tab { flex: none; padding: 5px 12px; border-radius: 999px; border: 1px solid #2a2a2a; background: #141414; color: #a0a0a0; font-size: 12px; white-space: nowrap; font-family: inherit; }
+.rt-root .rt-tab[data-on] { background: #c5a47e; color: #0a0a0a; border-color: #c5a47e; font-weight: 700; }
+.rt-root .rt-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 12px 16px; scrollbar-width: none; }
+.rt-root .rt-scroll::-webkit-scrollbar { display: none; }
+.rt-root .rt-dock { flex: none; display: flex; border-top: 1px solid #2a2a2a; background: #0a0a0a; padding: 9px 0 calc(22px + env(safe-area-inset-bottom, 0px)); }
+.rt-root .rt-dock button { flex: 1; padding: 4px 0; background: none; border: none; color: #666; font-size: 12px; font-family: inherit; }
+.rt-root .rt-dock button[data-on] { color: #c5a47e; font-weight: 700; }
+.rt-root .rt-post { background: #141414; border: 1px solid #2a2a2a; border-radius: 13px; padding: 12px; margin: 10px 0; }
+.rt-root .rt-post-head { display: flex; align-items: center; gap: 10px; }
+.rt-root .rt-face { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 50%; border: 2px solid #c5a47e; background: #1f1f1f; color: #c5a47e; font-weight: 800; overflow: hidden; }
+.rt-root .rt-face img { width: 100%; height: 100%; object-fit: cover; }
+.rt-root .rt-name { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.rt-root .rt-name b { color: #e8e8e8; font-size: 14px; }
+.rt-root .rt-rating { color: #c5a47e; border: 1px solid #c5a47e; border-radius: 4px; padding: 0 4px; font-size: 10px; }
+.rt-root .rt-stage { color: #666; font-size: 11px; }
+.rt-root .rt-text { color: #e8e8e8; margin: 10px 0; line-height: 1.65; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rt-root .rt-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.rt-root .rt-tag { padding: 2px 9px; border-radius: 999px; border: 1px solid #2a2a2a; background: #1f1f1f; color: #c5a47e; font-size: 11px; font-family: inherit; }
+.rt-root .rt-comments { background: #1f1f1f; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+.rt-root .rt-comments p { color: #a0a0a0; margin: 3px 0; font-size: 12.5px; line-height: 1.5; }
+.rt-root .rt-comments b { color: #c5a47e; }
+.rt-root .rt-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.rt-root .rt-btn2 { padding: 5px 12px; border-radius: 8px; border: 1px solid #2a2a2a; background: #1f1f1f; color: #e8e8e8; font-size: 12px; font-family: inherit; }
+.rt-root .rt-btn2.gold { border-color: #c5a47e; color: #c5a47e; }
+.rt-root .rt-btn2.primary { background: #c5a47e; color: #0a0a0a; border-color: #c5a47e; font-weight: 700; }
+.rt-root .rt-photo img { border: 1px solid #2a2a2a; border-radius: 10px; display: block; max-width: 100%; max-height: 320px; object-fit: cover; margin: 8px 0; }
+.rt-root .rt-note { color: #a0a0a0; font-size: 12px; padding: 6px 0; font-family: inherit; }
+.rt-root .rt-empty { text-align: center; color: #666; padding: 40px 12px; font-size: 13px; }
+.rt-root .rt-empty b { display: block; color: #a0a0a0; font-size: 15px; margin-bottom: 6px; }
+.rt-root .rt-sec { color: #c5a47e; font-size: 12px; letter-spacing: .1em; margin: 14px 0 6px; font-weight: 700; }
+.rt-root .rt-profile-head { text-align: center; padding: 16px 0 10px; }
+.rt-root .rt-profile-avatar { margin: 0 auto 10px; }
+.rt-root .rt-profile-name { margin: 0; font-size: 21px; color: #e8e8e8; }
+.rt-root .rt-profile-meta { color: #a0a0a0; font-size: 12.5px; margin-top: 4px; }
+.rt-root .rt-grid { display: grid; grid-template-columns: auto 1fr; gap: 9px 14px; padding: 14px; background: #141414; border: 1px solid #2a2a2a; border-radius: 11px; margin: 12px 0; }
+.rt-root .rt-grid .k { color: #666; font-size: 11.5px; }
+.rt-root .rt-grid .v { color: #e8e8e8; font-size: 13px; }
+.rt-root .rt-review { color: #a0a0a0; border-left: 2px solid #c5a47e; padding-left: 10px; margin: 8px 0; font-size: 12.5px; line-height: 1.6; }
+.rt-root .rt-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 12px; background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; margin: 6px 0; width: 100%; text-align: left; font-family: inherit; }
+.rt-root .rt-row strong { color: #e8e8e8; font-size: 14px; display: block; }
+.rt-root .rt-row small { color: #a0a0a0; font-size: 11.5px; display: block; margin-top: 2px; }
 `;
 function ensureStyle(doc) {
   if (!doc) return;
-  let style = doc.getElementById('root-app-style');
-  if (!style) { style = doc.createElement('style'); style.id = 'root-app-style'; doc.head.appendChild(style); }
+  let style = doc.getElementById('rt-style');
+  if (!style) { style = doc.createElement('style'); style.id = 'rt-style'; doc.head.appendChild(style); }
   if (style.textContent !== STYLE) style.textContent = STYLE;
 }
 
+/** 自己造的容器：和小手机 createView 无关，只提供 phone.js 需要的 root / refresh / dispose 和 App 自己的 draw / on / busy。 */
+function rootView(ctx) {
+  const doc = ctx.doc, win = ctx.win;
+  const root = doc.createElement('section');
+  root.className = 'rt-root';
+  const controller = new win.AbortController();
+  let disposed = false;
+  return {
+    root,
+    draw(html) { root.innerHTML = html; },
+    on(event, selector, handler) {
+      root.addEventListener(event, e => {
+        const el = e.target?.closest?.(selector);
+        if (el && root.contains(el)) handler(el, e);
+      }, {signal: controller.signal});
+    },
+    async busy(el, fn) {
+      if (el && 'disabled' in el) el.disabled = true;
+      try { return await fn(); } finally { if (el && 'disabled' in el) el.disabled = false; }
+    },
+    refresh() {},
+    dispose() { disposed = true; controller.abort(); },
+    get disposed() { return disposed; },
+  };
+}
+
 export function rootApp(ctx) {
-  const {api} = ctx, v = createView(ctx, 'root');
+  const {api} = ctx, v = rootView(ctx);
   let tab = 'hunt', sub = 'hunt-feed', search = '', profileId = '';
   const urls = new Map();
 
   const tabDef = () => TABS.find(t => t[0] === tab);
   const subName = id => tabDef()[2].find(s => s[0] === id)?.[1] || id;
-  // 头像自己画：金色圆框 + 名字首字（不套小手机 avatar 组件）。
   const face = (name, size) => `<span class="rt-face" style="width:${size}px;height:${size}px;font-size:${Math.round(size * .42)}px">${esc(String(name || '?').charAt(0))}</span>`;
 
   const urlFor = async id => {
@@ -201,7 +226,7 @@ export function rootApp(ctx) {
     }
     if (sub === 'account') {
       const u = state.用户 || {};
-      const row = (k, v) => `<div class="rt-row"><span><strong>${esc(k)}</strong><small>${esc(v)}</small></span></div>`;
+      const row = (k, val) => `<div class="rt-row"><span><strong>${esc(k)}</strong><small>${esc(val)}</small></span></div>`;
       return `<div class="rt-sec">账号与晋升</div>` + row('名称', u.名称 || '未设置') + row('等级', LEVELS[u.等级] || u.等级 || '') + row('资金', '¥' + (u.资金 ?? 0)) + row('积分', u.积分 ?? 0);
     }
     if (sub === 'rules') return `<div class="rt-sec">配种者守则</div><div class="rt-note">行为保密、开发原则、积分系统、便器评级、开发程度、晋升条例——后续从世界书同步。</div>`;
@@ -213,7 +238,7 @@ export function rootApp(ctx) {
     ensureStyle(ctx.doc);
     const state = await api.rootState().catch(() => null) || {};
     const showSearch = !profileId && (sub === 'hunt-feed' || sub === 'showcase');
-    v.draw(`<div class="rt-app">${topBar(showSearch)}<div class="rt-scroll">${body(state)}</div>${dock()}</div>`);
+    v.draw(`${topBar(showSearch)}<div class="rt-scroll">${body(state)}</div>${dock()}`);
     loadPhotos();
   }
 
