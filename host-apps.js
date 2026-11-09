@@ -181,15 +181,16 @@ export function createAppsHost({context, settings, backend, memory = null}) {
   }
 
   // ---------- 根源重塑 ----------
-  /** 猎场刷新：用文字模型生成新猎场帖子，追加进猎场流（旧的保留）。 */
-  function rootHunt() {
+  /** 猎场刷新 / 搜索：用文字模型生成新猎场帖子，追加进猎场流（旧的保留）。query：搜索词（搜名字生成那个人，搜标签生成那类人）。 */
+  function rootHunt(query = '') {
     return run('root', async ctx => {
       const {preset} = base();
       const state = await backend.rootState();
       const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(Boolean);
+      const askText = query ? `搜索「${query}」：生成和这个词相关的猎物帖子（搜名字就生成那个人，搜标签就生成那类人）。当前猎物库已有：${existing.join('、') || '（空）'}。` : `当前猎物库已有：${existing.join('、') || '（空）'}。生成新帖子，猎物不要和已有的重名。`;
       const prompt = [
         {role: 'system', content: HUNT_PROMPT},
-        {role: 'user', content: `当前猎物库已有：${existing.join('、') || '（空）'}。生成新帖子，猎物不要和已有的重名。`},
+        {role: 'user', content: askText},
       ];
       const reply = await ask(ctx, prompt, preset, 'root');
       const hunt = parseHunt(reply);
@@ -207,16 +208,17 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       return hunt.length;
     });
   }
-  /** 便器广场刷新：用文字模型生成新广场帖子，追加进广场流。 */
-  function rootShowcase() {
+  /** 便器广场刷新 / 搜索：用文字模型生成新广场帖子，追加进广场流。 */
+  function rootShowcase(query = '') {
     return run('root', async ctx => {
       const {preset} = base();
       const state = await backend.rootState();
       const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(Boolean);
       if (!existing.length) throw Error('还没有猎物，先刷猎场');
+      const askText = query ? `搜索「${query}」：生成和这个词相关的广场帖子（搜名字/标签找对应的便器或配种者）。已有便器：${existing.join('、')}。作者从这些里选，或者是一个搜索到的新配种者。` : `已有便器：${existing.join('、')}。生成广场帖子，作者从这些里选。`;
       const prompt = [
         {role: 'system', content: SHOW_PROMPT},
-        {role: 'user', content: `已有便器：${existing.join('、')}。生成广场帖子，作者从这些里选。`},
+        {role: 'user', content: askText},
       ];
       const reply = await ask(ctx, prompt, preset, 'root');
       const show = parseShow(reply);
@@ -267,6 +269,23 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     if (settings().moments.images === false) return;
     for (const p of posts || []) if (p.imageTags && !p.photoId) rootDrawImage(p.id).catch(() => {});
   }
+  /** 私聊：按根源里的档案在小手机建一个角色，再放进当前卡的通讯录（已在就不重复建）。 */
+  async function rootAddContact(targetId) {
+    const state = await backend.rootState();
+    const t = state.猎物库?.[targetId];
+    if (!t) throw Error('找不到这个人');
+    const p = t.基础档案, b = t.配种信息;
+    const name = String(p.姓名 || '').trim();
+    if (!name) throw Error('这个人没有名字');
+    const exists = (backend.contacts?.() || []).some(c => c.name === name);
+    if (!exists) {
+      const fields = [['姓名', name], ['年龄', p.年龄], ['职业', p.职业], ['籍贯', p.籍贯], ['外貌', p.外貌], ['性格', p.性格], ['体型', p.体型], ['身高', p.身高], ['体重', p.体重], ['疾病', p.疾病], ['尺寸', p.尺寸描述], ['评级', p.评级]];
+      const persona = fields.filter(([, v]) => v !== undefined && v !== null && String(v).trim()).map(([k, v]) => `${k}：${v}`).join('\n');
+      backend.saveRoute({ name, persona });
+      backend.addRoleContact(name);
+    }
+    return { name, added: !exists };
+  }
 
-  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, rootShowcase, rootDrawImage, busy: app => !!busy[app]};
+  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, rootShowcase, rootDrawImage, rootAddContact, busy: app => !!busy[app]};
 }

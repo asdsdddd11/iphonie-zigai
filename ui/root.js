@@ -92,6 +92,12 @@ export function rootApp(ctx) {
       `<button type="button" data-action="root-sub" data-sub="${id}" aria-pressed="${sub === id}">${name}</button>`).join('')}</div>`;
   }
   const refreshBtn = () => btn('root-refresh', icon('refresh'), 'round-button', 'aria-label="刷新"');
+  function searchBox() {
+    return `<div class="root-search" style="display:flex;gap:8px;margin:0 0 8px">
+      <input type="search" data-field="root-search" aria-label="搜索" placeholder="搜名字或标签，AI 生成对应帖子" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid #2a2a2a;background:#141414;color:#e8e8e8">
+      <button type="button" class="chip-button" data-action="root-do-search">搜索</button>
+    </div>`;
+  }
 
   function photo(p) {
     if (p.photoId) {
@@ -104,7 +110,7 @@ export function rootApp(ctx) {
     return `<button type="button" class="moment-note" data-action="root-draw" data-id="${esc(p.id)}">这条帖子有配图 · 点一下画出来</button>`;
   }
 
-  function feedRow(p, state) {
+  function feedRow(p, state, allowApply = false) {
     const t = state.猎物库?.[p.猎物ID];
     const name = t?.基础档案?.姓名 || '未知';
     const rating = t?.基础档案?.评级 || '原矿';
@@ -119,11 +125,11 @@ export function rootApp(ctx) {
       ${photo(p)}
       <div class="root-post-tags">${tags.map(tag => `<button type="button" class="chip-button" data-action="root-search" data-tag="${esc(tag)}">${esc(tag)}</button>`).join('')}</div>
       ${p.评论区?.length ? `<div class="root-post-comments">${p.评论区.map(c => `<p><b>${esc(c.留言者)}</b>：${esc(c.内容)}</p>`).join('')}</div>` : ''}
-      <div class="root-post-actions">${btn('root-profile', '看档案', 'text-button', `data-id="${esc(p.猎物ID)}"`)}${btn('root-apply', '申请配种', 'chip-button', `data-id="${esc(p.猎物ID)}"`)}</div>
+      <div class="root-post-actions">${btn('root-profile', '看档案', 'text-button', `data-id="${esc(p.猎物ID)}"`)}${btn('root-chat', '私聊', 'text-button', `data-id="${esc(p.猎物ID)}"`)}${allowApply ? btn('root-apply', '申请配种', 'chip-button', `data-id="${esc(p.猎物ID)}"`) : ''}</div>
     </div>`;
   }
 
-  function feedPage(state, feed, title, hint) {
+  function feedPage(state, feed, title, hint, allowApply = false) {
     const q = search.toLowerCase();
     const rows = feed.filter(p => {
       const t = state.猎物库?.[p.猎物ID];
@@ -131,8 +137,9 @@ export function rootApp(ctx) {
       return (p.文案 || '').toLowerCase().includes(q) || (p.标签 || '').toLowerCase().includes(q) || (t?.基础档案?.姓名 || '').toLowerCase().includes(q);
     });
     return groupTitle(title, refreshBtn())
+      + searchBox()
       + (search ? `<p class="hint" style="margin:0 8px">搜索「${esc(search)}」<button type="button" class="text-button" data-action="root-clear-search">清除</button></p>` : '')
-      + (rows.length ? `<div class="group root-feed">${rows.map(p => feedRow(p, state)).join('')}</div>`
+      + (rows.length ? `<div class="group root-feed">${rows.map(p => feedRow(p, state, allowApply)).join('')}</div>`
         : `<div class="group pad">${empty(search ? '没有匹配的帖子' : '还没有帖子', search ? '换个关键词试试。' : '点右上角刷新，刷出新猎物。', 'compass')}</div>`)
       + (hint ? `<p class="hint" style="margin:8px">${esc(hint)}</p>` : '');
   }
@@ -147,7 +154,7 @@ export function rootApp(ctx) {
         <p style="text-align:center;margin:8px 0">${face(p.姓名, 72)}</p>
         ${row('姓名', p.姓名)}${row('评级', p.评级)}${row('疾病', p.疾病)}${row('年龄', p.年龄)}${row('外貌', p.外貌)}${row('职业', p.职业)}${row('籍贯', p.籍贯)}${row('性格', p.性格)}${row('体型', p.体型)}${row('身高', p.身高)}${row('体重', p.体重)}${row('尺寸', p.尺寸描述)}${row('开发阶段', STAGES[b.开发阶段] || '')}${row('配种次数', b.配种次数)}
       </div>`
-      + `<div class="actions">${btn('root-apply', '申请配种', 'primary', `data-id="${esc(profileId)}"`)}</div>`;
+      + `<div class="actions">${btn('root-chat', '私聊', 'primary', `data-id="${esc(profileId)}"`)}</div>`;
   }
 
   function stableRows(state) {
@@ -160,8 +167,8 @@ export function rootApp(ctx) {
 
   function renderPage(state) {
     if (profileId) return profilePage(state);
-    if (sub === 'hunt-feed') return feedPage(state, state.猎场流 || [], '猎场信息流', '帖子累积保留，刷新追加新帖。');
-    if (sub === 'showcase') return feedPage(state, state.广场流 || [], '便器广场', '配种成果展示。');
+    if (sub === 'hunt-feed') return feedPage(state, state.猎场流 || [], '猎场信息流', '帖子累积保留，刷新追加新帖。', false);
+    if (sub === 'showcase') return feedPage(state, state.广场流 || [], '便器广场', '配种成果展示。', true);
     if (sub === 'my-stable') return groupTitle('我的便器') + stableRows(state);
     if (sub === 'account') {
       const u = state.用户 || {};
@@ -216,7 +223,23 @@ export function rootApp(ctx) {
       await v.busy(el, async () => { await api.rootDrawImage(el.dataset.id); render(); });
     }
     else if (action === 'root-view-photo') viewPhoto(el.dataset.id);
-    else if (action === 'root-apply') ctx.notify('申请配种后续接入');
+    else if (action === 'root-do-search') {
+      const box = v.root.querySelector('[data-field=root-search]');
+      const q = (box?.value || '').trim();
+      if (!q) { ctx.notify('先输入搜索词'); return; }
+      await v.busy(el, async () => {
+        const n = sub === 'showcase' ? await api.rootShowcase(q) : await api.rootHunt(q);
+        ctx.notify(`搜出 ${n} 条`);
+        render();
+      });
+    }
+    else if (action === 'root-chat') {
+      await v.busy(el, async () => {
+        const r = await api.rootAddContact(el.dataset.id);
+        ctx.notify(r.added ? `已把「${r.name}」加进通讯录，去消息 App 找他吧` : `「${r.name}」已经在通讯录里了`);
+      });
+    }
+    else if (action === 'root-apply') ctx.notify('申请配种后续接入（在便器广场）');
   });
 
   render();
