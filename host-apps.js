@@ -186,8 +186,14 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     return run('root', async ctx => {
       const {preset} = base();
       const state = await backend.rootState();
+      const me = userName();
       const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(Boolean);
-      const askText = query ? `搜索「${query}」：只生成 1 条帖子，就是这个搜索词对应的那一个人（搜名字就生成这个名字的人；搜标签就生成一个符合这个标签的人）。禁止生成多个，禁止生成不相干的人。当前猎物库已有：${existing.join('、') || '（空）'}。` : `当前猎物库已有：${existing.join('、') || '（空）'}。生成新帖子，猎物不要和已有的重名。`;
+      const level = Math.min(5, Math.max(1, Number(state.用户?.等级) || 1));
+      const RATINGS = ['原矿', '粗坯', '精雕', '宝玉', '神物'];
+      const cap = RATINGS[level - 1];
+      const askText = query
+        ? `搜索「${query}」：只生成 1 条帖子，就是这个搜索词对应的那一个人（搜名字就生成这个名字的人；搜标签就生成一个符合这个标签的人）。禁止生成多个，禁止生成不相干的人。当前猎物库已有：${existing.join('、') || '（空）'}。用户当前等级是 ${level}，猎物评级绝对不能超过「${cap}」。`
+        : `当前猎物库已有：${existing.join('、') || '（空）'}。生成新帖子，猎物不要和已有的重名。用户当前等级是 ${level}，猎物评级绝对不能超过「${cap}」。用户叫「${me}」，绝对不要生成用户已经收下的便器。`;
       const prompt = [
         {role: 'system', content: HUNT_PROMPT},
         {role: 'user', content: askText},
@@ -201,7 +207,10 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const now = Date.now();
       for (const f of targets) {
         const id = crypto.randomUUID();
-        猎物库[id] = huntToTarget(f);
+        const target = huntToTarget(f);
+        const ri = RATINGS.indexOf(target.基础档案.评级);
+        if (ri > level - 1) target.基础档案.评级 = cap;
+        猎物库[id] = target;
         fresh.push(huntToFeed(f, id, now));
       }
       const 猎场流 = query ? [...fresh, ...(state.猎场流 || [])] : fresh;
@@ -215,9 +224,10 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     return run('root', async ctx => {
       const {preset} = base();
       const state = await backend.rootState();
-      const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(Boolean);
+      const me = userName();
+      const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(n => n && n !== me);
       if (!existing.length) throw Error('还没有猎物，先刷猎场');
-      const askText = query ? `搜索「${query}」：只生成 1 条广场帖子，就是这个搜索词对应的便器或配种者。禁止生成多个，禁止生成不相干的人。已有便器：${existing.join('、')}。作者优先从已有便器里选，找不到就用一个搜索到的新名字。` : `已有便器：${existing.join('、')}。生成广场帖子，作者从这些里选。`;
+      const askText = query ? `搜索「${query}」：只生成 1 条广场帖子，就是这个搜索词对应的便器。禁止生成多个，禁止生成不相干的人。已有便器：${existing.join('、')}。用户叫「${me}」，作者和评论者都不能是用户本人。` : `已有便器：${existing.join('、')}。生成广场帖子，作者从这些里选。用户叫「${me}」，作者和评论者都不能是用户本人，配文必须出现便器真名。`;
       const prompt = [
         {role: 'system', content: SHOW_PROMPT},
         {role: 'user', content: askText},
