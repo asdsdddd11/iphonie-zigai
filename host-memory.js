@@ -290,8 +290,28 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
     return [kept, recallText(found, {who: '剧情'})].filter(Boolean).join('\n\n');
   }
 
-  /** 更早的剧情: 小手机自己的正文摘要优先，没有再读记忆插件放进 extension prompt 的。 */
-  function storyMemory() { return storyCtx || storyMemoryText(context()?.extensionPrompts, options().storyKeys); }
+  /** 读百宝书（柏宝书）的正文摘要：叶子在每条消息的 extra.bbs_leaf，压缩节点在 chatMetadata.baibai_book.summaries。 */
+  function baibaiStory(cap = 3000) {
+    const ctx = context();
+    if (!ctx) return '';
+    const parts = [];
+    const sums = Array.isArray(ctx.chatMetadata?.baibai_book?.summaries) ? ctx.chatMetadata.baibai_book.summaries : [];
+    const comps = sums.filter(s => (Number(s.level) || 0) >= 1 && String(s.text || '').trim())
+      .sort((a, b) => (Number(a.level) || 0) - (Number(b.level) || 0) || (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
+    for (const s of comps) parts.push(`【L${Number(s.level) || 1}】${String(s.text).trim()}`);
+    const leaves = [];
+    for (const m of ctx.chat || []) {
+      const leaf = m?.extra?.bbs_leaf;
+      if (leaf?.text && !m?.extra?.bbs_omit) leaves.push({text: String(leaf.text).trim(), at: Number(leaf.createdAt) || 0});
+    }
+    leaves.sort((a, b) => a.at - b.at);
+    for (const l of leaves.slice(-10)) parts.push(l.text);
+    const text = parts.join('\n');
+    return text.length > cap ? '……' + text.slice(-cap) : text;
+  }
+
+  /** 更早的剧情: 百宝书的摘要优先（它每条正文一个、已合并），没有再退到小手机自己的正文摘要。 */
+  function storyMemory() { return baibaiStory() || storyCtx || storyMemoryText(context()?.extensionPrompts, options().storyKeys); }
   /** Every extension prompt there is now (not the phone's own), for picking which hold story memory. */
   function storySources() {
     const prompts = context()?.extensionPrompts || {}, picked = new Set(options().storyKeys);
