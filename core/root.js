@@ -135,7 +135,7 @@ export const HUNT_PROMPT = `${HUNT_LORE}
 体型：xx
 身高：xxcm
 体重：xxkg
-尺寸描述：xx
+尺寸描述：xx（格式 正常长度/勃起长度，例如 18cm/无法测量；阳痿的勃起长度写「无法测量」）
 配种次数：xx
 文案：xx
 媒体描述：xx
