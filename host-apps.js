@@ -181,13 +181,13 @@ export function createAppsHost({context, settings, backend, memory = null}) {
   }
 
   // ---------- 根源重塑 ----------
-  /** 猎场刷新 / 搜索：用文字模型生成新猎场帖子，追加进猎场流（旧的保留）。query：搜索词（搜名字生成那个人，搜标签生成那类人）。 */
+  /** 猎场刷新 / 搜索。刷新：覆盖旧帖子；搜索：只生成 1 条，放列表最前。 */
   function rootHunt(query = '') {
     return run('root', async ctx => {
       const {preset} = base();
       const state = await backend.rootState();
       const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(Boolean);
-      const askText = query ? `搜索「${query}」：生成和这个词相关的猎物帖子（搜名字就生成那个人，搜标签就生成那类人）。当前猎物库已有：${existing.join('、') || '（空）'}。` : `当前猎物库已有：${existing.join('、') || '（空）'}。生成新帖子，猎物不要和已有的重名。`;
+      const askText = query ? `搜索「${query}」：只生成 1 条帖子，就是这个搜索词对应的那一个人（搜名字就生成这个名字的人；搜标签就生成一个符合这个标签的人）。禁止生成多个，禁止生成不相干的人。当前猎物库已有：${existing.join('、') || '（空）'}。` : `当前猎物库已有：${existing.join('、') || '（空）'}。生成新帖子，猎物不要和已有的重名。`;
       const prompt = [
         {role: 'system', content: HUNT_PROMPT},
         {role: 'user', content: askText},
@@ -195,27 +195,29 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const reply = await ask(ctx, prompt, preset, 'root');
       const hunt = parseHunt(reply);
       if (!hunt.length) throw Error('这次没有刷出新帖子，可以再试一次');
+      const targets = query ? hunt.slice(0, 1) : hunt;
       const 猎物库 = { ...state.猎物库 };
-      const 猎场流 = [...(state.猎场流 || [])];
+      const fresh = [];
       const now = Date.now();
-      for (const f of hunt) {
+      for (const f of targets) {
         const id = crypto.randomUUID();
         猎物库[id] = huntToTarget(f);
-        猎场流.push(huntToFeed(f, id, now));
+        fresh.push(huntToFeed(f, id, now));
       }
+      const 猎场流 = query ? [...fresh, ...(state.猎场流 || [])] : fresh;
       await backend.saveRoot({ 猎物库, 猎场流 });
-      rootDrawNew(猎场流.slice(-hunt.length));
-      return hunt.length;
+      rootDrawNew(fresh);
+      return fresh.length;
     });
   }
-  /** 便器广场刷新 / 搜索：用文字模型生成新广场帖子，追加进广场流。 */
+  /** 便器广场刷新 / 搜索。刷新：覆盖旧帖子；搜索：只生成 1 条，放列表最前。 */
   function rootShowcase(query = '') {
     return run('root', async ctx => {
       const {preset} = base();
       const state = await backend.rootState();
       const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(Boolean);
       if (!existing.length) throw Error('还没有猎物，先刷猎场');
-      const askText = query ? `搜索「${query}」：生成和这个词相关的广场帖子（搜名字/标签找对应的便器或配种者）。已有便器：${existing.join('、')}。作者从这些里选，或者是一个搜索到的新配种者。` : `已有便器：${existing.join('、')}。生成广场帖子，作者从这些里选。`;
+      const askText = query ? `搜索「${query}」：只生成 1 条广场帖子，就是这个搜索词对应的便器或配种者。禁止生成多个，禁止生成不相干的人。已有便器：${existing.join('、')}。作者优先从已有便器里选，找不到就用一个搜索到的新名字。` : `已有便器：${existing.join('、')}。生成广场帖子，作者从这些里选。`;
       const prompt = [
         {role: 'system', content: SHOW_PROMPT},
         {role: 'user', content: askText},
@@ -223,16 +225,18 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const reply = await ask(ctx, prompt, preset, 'root');
       const show = parseShow(reply);
       if (!show.length) throw Error('这次没有刷出广场帖子，可以再试一次');
-      const 广场流 = [...(state.广场流 || [])];
+      const targets = query ? show.slice(0, 1) : show;
+      const fresh = [];
       const now = Date.now();
-      for (const f of show) {
+      for (const f of targets) {
         const name = f['作者'];
         const id = Object.entries(state.猎物库).find(([, t]) => t.基础档案?.姓名 === name)?.[0];
-        if (id) 广场流.push(huntToFeed(f, id, now));
+        if (id) fresh.push(huntToFeed(f, id, now));
       }
+      const 广场流 = query ? [...fresh, ...(state.广场流 || [])] : fresh;
       await backend.saveRoot({ 广场流 });
-      rootDrawNew(广场流.slice(-show.length));
-      return 广场流.length;
+      rootDrawNew(fresh);
+      return fresh.length;
     });
   }
 
@@ -283,6 +287,7 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const persona = fields.filter(([, v]) => v !== undefined && v !== null && String(v).trim()).map(([k, v]) => `${k}：${v}`).join('\n');
       backend.saveRoute({ name, persona });
       backend.addRoleContact(name);
+      memory?.tidyLife?.(name).catch(() => {});
     }
     return { name, added: !exists };
   }

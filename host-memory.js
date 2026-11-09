@@ -355,6 +355,16 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
         for (const r of (p.replies || [])) if (r.from === name) items.push({text: `论坛回复「${p.title || '（无标题）'}」：${r.text}`, at: r.at || p.at || 0});
       }
     } catch {}
+    try {
+      const rootState = await backend.rootState?.();
+      if (rootState) {
+        const posts = [...(rootState.猎场流 || []), ...(rootState.广场流 || [])];
+        for (const p of posts) {
+          const t = rootState.猎物库?.[p.猎物ID];
+          if (t?.基础档案?.姓名 === name) items.push({text: `根源App：${p.文案}`, at: p.at || 0});
+        }
+      }
+    } catch {}
     return items;
   }
   /** 拉取一个角色的全部生活内容（朋友圈、论坛发言、查手机快照），拼成待压缩的文本。 */

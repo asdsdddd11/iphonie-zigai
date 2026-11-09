@@ -1,4 +1,4 @@
-// 根源重塑 App：线上独立于正文。猎场 / 便器广场是帖子流，刷新追加新帖；头像可点进档案，配图可画可看大图。
+// 根源重塑 App：线上独立于正文。猎场 / 便器广场是帖子流，刷新覆盖、搜索置顶；头像可点进档案，配图可画可看大图。
 import {createView, esc, btn, heading, groupTitle, empty, avatar} from './common.js';
 import {icon} from './icons.js';
 import {previewBlob} from './thumbs.js';
@@ -13,27 +13,19 @@ const TABS = [
 const LEVELS = {1: '体验者', 2: '播种机', 3: '调教师', 4: '处刑官', 4.5: '准牧场主', 5: '牧场主'};
 const STAGES = {0: '未调教', 1: '初诊期', 2: '崩坏期', 3: '成瘾期', 4: '改写期', 5: '重塑期'};
 
-// 暗黑 + 鎏金（对齐 mvu 前端的配色）：只作用在根源 App 里，不影响其他 App。
+// 只给根源 App 自己的组件加样式，不碰通用类（避免和皮肤/通用 UI 冲突）。
 const STYLE = `
 .root-app { background: #0a0a0a; min-height: 100%; padding: 0 12px 20px; color: #e8e8e8; }
-.root-app .page-heading h1 { color: #e8e8e8; }
 .root-app .page-heading .eyebrow { color: #c5a47e; letter-spacing: .18em; }
-.root-app .group-title span { color: #c5a47e; letter-spacing: .08em; }
+.root-app .group-title span { color: #c5a47e; }
 .root-app .hint { color: #a0a0a0; }
-.root-app .segmented { background: transparent; gap: 6px; }
-.root-app .segmented button { background: #1f1f1f; color: #a0a0a0; border: 1px solid #2a2a2a; border-radius: 8px; }
-.root-app .segmented button[aria-pressed="true"] { background: #c5a47e; color: #0a0a0a; border-color: #c5a47e; font-weight: 600; }
-.root-app .group { background: transparent; }
-.root-app .list-row { background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; margin: 6px 0; color: #e8e8e8; }
-.root-app .list-row strong { color: #e8e8e8; }
-.root-app .list-row small { color: #a0a0a0; }
 .root-app .plate { color: #c5a47e; border: 1px solid #c5a47e; border-radius: 4px; padding: 1px 5px; font-size: 11px; }
 .root-app .chip-button { background: #1f1f1f; color: #c5a47e; border: 1px solid #2a2a2a; border-radius: 999px; }
-.root-post { background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+.root-search input { border: 1px solid #2a2a2a; background: #141414; color: #e8e8e8; border-radius: 8px; padding: 8px 10px; flex: 1; }
+.root-post { background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px; margin: 10px 0; }
 .root-post-head { display: flex; align-items: center; gap: 10px; }
 .root-avatar { border: 2px solid #c5a47e; border-radius: 50%; padding: 0; background: #0a0a0a; overflow: hidden; }
 .root-post-name { display: flex; align-items: center; gap: 6px; }
-.root-post-name b { color: #e8e8e8; }
 .root-post-text { color: #e8e8e8; margin: 10px 0; line-height: 1.7; }
 .root-post-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .root-post-comments { background: #1f1f1f; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
@@ -41,8 +33,17 @@ const STYLE = `
 .root-post-comments b { color: #c5a47e; }
 .root-post-actions { display: flex; gap: 8px; margin-top: 10px; }
 .root-photo img { border: 1px solid #2a2a2a; }
-.root-app .empty h2 { color: #e8e8e8; }
-.root-app .empty p { color: #a0a0a0; }
+.root-profile-head { text-align: center; padding: 14px 0 8px; }
+.root-profile-avatar { width: 64px; height: 64px; border-radius: 50%; border: 2px solid #c5a47e; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 24px; color: #c5a47e; background: #1f1f1f; }
+.root-profile-name { color: #e8e8e8; margin: 4px 0; font-size: 20px; }
+.root-profile-meta { color: #a0a0a0; font-size: 13px; }
+.root-profile-meta .rating { color: #c5a47e; }
+.root-info-grid { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; padding: 14px; background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; margin: 10px 0; }
+.root-info-grid .grid-key { color: #666; font-size: 12px; }
+.root-info-grid .grid-val { color: #e8e8e8; font-size: 13px; }
+.root-reviews { margin: 12px 0; }
+.root-reviews h3 { color: #c5a47e; font-size: 14px; margin: 8px 0; }
+.root-review { color: #a0a0a0; border-left: 2px solid #c5a47e; padding-left: 10px; margin: 8px 0; font-size: 13px; line-height: 1.6; }
 `;
 function ensureStyle(doc) {
   if (!doc || doc.getElementById('root-app-style')) return;
@@ -91,10 +92,10 @@ export function rootApp(ctx) {
     return `<div class="segmented" style="margin:0 0 8px">${subs.map(([id, name]) =>
       `<button type="button" data-action="root-sub" data-sub="${id}" aria-pressed="${sub === id}">${name}</button>`).join('')}</div>`;
   }
-  const refreshBtn = () => btn('root-refresh', icon('refresh'), 'round-button', 'aria-label="刷新"');
+  const refreshBtn = () => btn('root-refresh', icon('refresh'), 'round-button', 'aria-label="刷新（覆盖）"');
   function searchBox() {
     return `<div class="root-search" style="display:flex;gap:8px;margin:0 0 8px">
-      <input type="search" data-field="root-search" aria-label="搜索" placeholder="搜名字或标签，AI 生成对应帖子" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid #2a2a2a;background:#141414;color:#e8e8e8">
+      <input type="search" data-field="root-search" aria-label="搜索" placeholder="搜名字或标签，AI 生成对应帖子">
       <button type="button" class="chip-button" data-action="root-do-search">搜索</button>
     </div>`;
   }
@@ -148,13 +149,26 @@ export function rootApp(ctx) {
     const t = state.猎物库?.[profileId];
     if (!t) return groupTitle('档案') + `<div class="group pad">${empty('找不到这个人', '', 'person')}</div>`;
     const p = t.基础档案, b = t.配种信息;
-    const row = (k, v) => `<div class="list-row"><span><strong>${esc(k)}</strong><small>${esc(v || '—')}</small></span></div>`;
+    const posts = [...(state.猎场流 || []), ...(state.广场流 || [])].filter(x => x.猎物ID === profileId);
+    const reviews = Object.values(b.过往评价 || {});
     return groupTitle('档案', btn('root-back', icon('back'), 'round-button', 'aria-label="返回"'))
-      + `<div class="group pad">
-        <p style="text-align:center;margin:8px 0">${face(p.姓名, 72)}</p>
-        ${row('姓名', p.姓名)}${row('评级', p.评级)}${row('疾病', p.疾病)}${row('年龄', p.年龄)}${row('外貌', p.外貌)}${row('职业', p.职业)}${row('籍贯', p.籍贯)}${row('性格', p.性格)}${row('体型', p.体型)}${row('身高', p.身高)}${row('体重', p.体重)}${row('尺寸', p.尺寸描述)}${row('开发阶段', STAGES[b.开发阶段] || '')}${row('配种次数', b.配种次数)}
-      </div>`
-      + `<div class="actions">${btn('root-chat', '私聊', 'primary', `data-id="${esc(profileId)}"`)}</div>`;
+      + `<div class="root-profile-head">
+          <div class="root-profile-avatar">${esc(String(p.姓名 || '?').charAt(0))}</div>
+          <h2 class="root-profile-name">${esc(p.姓名)}</h2>
+          <div class="root-profile-meta"><span class="rating">[${esc(p.评级 || '原矿')}]</span> · <span>${esc(p.职业 || '未知')}</span> · <span>${esc(p.籍贯 || '')}</span></div>
+        </div>
+        <div class="root-info-grid">
+          <span class="grid-key">病理档案</span><span class="grid-val" style="color:#993333">${esc(p.疾病 || '未知')}</span>
+          <span class="grid-key">基础参数</span><span class="grid-val">${esc(p.年龄 || '?')}岁 / ${esc(p.身高 || '?')} / ${esc(p.体重 || '?')}</span>
+          <span class="grid-key">肉体维度</span><span class="grid-val">${esc(p.体型 || '?')}</span>
+          <span class="grid-key">精神刻写</span><span class="grid-val">${esc(p.性格 || '?')}</span>
+          <span class="grid-key">外貌</span><span class="grid-val">${esc(p.外貌 || '?')}</span>
+          <span class="grid-key">性器规格</span><span class="grid-val">${esc(p.尺寸描述 || '?')}</span>
+          <span class="grid-key">开发记录</span><span class="grid-val" style="color:#c5a47e;font-weight:bold">已配种 ${esc(b.配种次数 || 0)} 次 (Lv.${esc(b.开发阶段 || 0)} · ${esc(STAGES[b.开发阶段] || '')})</span>
+        </div>
+        <div class="actions">${btn('root-chat', '调出加密通讯', 'primary', `data-id="${esc(profileId)}"`)}</div>
+        <div class="root-reviews"><h3>主页动态</h3>${posts.length ? posts.map(x => `<div class="root-review">${esc(x.文案)}</div>`).join('') : '<p class="hint">还没有帖子。</p>'}</div>
+        ${reviews.length ? `<div class="root-reviews"><h3>调教评价</h3>${reviews.map(r => `<div class="root-review">“${esc(r)}”</div>`).join('')}</div>` : ''}`;
   }
 
   function stableRows(state) {
@@ -167,7 +181,7 @@ export function rootApp(ctx) {
 
   function renderPage(state) {
     if (profileId) return profilePage(state);
-    if (sub === 'hunt-feed') return feedPage(state, state.猎场流 || [], '猎场信息流', '帖子累积保留，刷新追加新帖。', false);
+    if (sub === 'hunt-feed') return feedPage(state, state.猎场流 || [], '猎场信息流', '刷新覆盖旧帖，搜索把新帖放最前。', false);
     if (sub === 'showcase') return feedPage(state, state.广场流 || [], '便器广场', '配种成果展示。', true);
     if (sub === 'my-stable') return groupTitle('我的便器') + stableRows(state);
     if (sub === 'account') {
@@ -191,7 +205,6 @@ export function rootApp(ctx) {
     loadPhotos();
   }
 
-  /** 帖子配图：点开看大图（多版左右滑、看参数、下载、分享、收藏，和朋友圈一样）。 */
   async function viewPhoto(postId) {
     const state = await api.rootState().catch(() => null) || {};
     const post = [...(state.猎场流 || []), ...(state.广场流 || [])].find(p => p.id === postId);
@@ -213,7 +226,7 @@ export function rootApp(ctx) {
     else if (action === 'root-refresh') {
       await v.busy(el, async () => {
         const n = sub === 'showcase' ? await api.rootShowcase() : await api.rootHunt();
-        ctx.notify(`刷出 ${n} 条${sub === 'showcase' ? '广场' : '猎场'}帖子`);
+        ctx.notify(`刷出 ${n} 条${sub === 'showcase' ? '广场' : '猎场'}帖子（覆盖）`);
         render();
       });
     }
@@ -229,7 +242,7 @@ export function rootApp(ctx) {
       if (!q) { ctx.notify('先输入搜索词'); return; }
       await v.busy(el, async () => {
         const n = sub === 'showcase' ? await api.rootShowcase(q) : await api.rootHunt(q);
-        ctx.notify(`搜出 ${n} 条`);
+        ctx.notify(`搜出 ${n} 条，已放最前`);
         render();
       });
     }
