@@ -252,8 +252,12 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     if (!backend.drawReady()) { post.imageState = 'failed'; post.imageNote = backend.drawMissing(); await save(); return null; }
     const profile = state.猎物库?.[post.猎物ID]?.基础档案 || {};
     try {
-      const names = [...settings().routes.map(r => r.name), userName()];
-      const input = pictureInputs(settings(), photoPicture(settings(), {text: post.文案, tags: post.imageTags, owner: profile.姓名 || '', names}), '');
+      const s = settings();
+      const looks = String(profile.外貌Tag || '').trim();
+      const names = [...s.routes.map(r => r.name), userName(), profile.姓名].filter(Boolean);
+      // 让 photoPicture 认得出这个人：临时塞一个带固定外貌的角色（不改真实 settings）。
+      const fake = looks ? {...s, routes: [...s.routes, {name: profile.姓名 || '猎物', appearance: looks, engine: 'none', voice: '', model: '', language: ''}]} : s;
+      const input = pictureInputs(fake, photoPicture(fake, {text: post.文案, tags: post.imageTags, owner: profile.姓名 || '', names}), '');
       post.imageState = 'waiting'; post.imageNote = '';
       await save();
       const result = await backend.generateImage({...input, allowPaid, name: `根源-${profile.姓名 || '帖子'}`, key: `root:${postId}`, label: `根源 · ${profile.姓名 || '帖子'}`});
@@ -285,7 +289,7 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     if (!exists) {
       const fields = [['姓名', name], ['年龄', p.年龄], ['职业', p.职业], ['籍贯', p.籍贯], ['外貌', p.外貌], ['性格', p.性格], ['体型', p.体型], ['身高', p.身高], ['体重', p.体重], ['疾病', p.疾病], ['尺寸', p.尺寸描述], ['评级', p.评级]];
       const persona = fields.filter(([, v]) => v !== undefined && v !== null && String(v).trim()).map(([k, v]) => `${k}：${v}`).join('\n');
-      backend.saveRoute({ name, persona });
+      backend.saveRoute({ name, persona, appearance: String(p.外貌Tag || '').trim() });
       backend.addRoleContact(name);
       memory?.tidyLife?.(name).catch(() => {});
     }

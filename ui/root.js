@@ -21,6 +21,7 @@ ${S} .root-app { flex: 1; display: flex; flex-direction: column; min-height: 0; 
 ${S} .root-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 0 12px; scrollbar-width: none; }
 ${S} .root-scroll::-webkit-scrollbar { display: none; }
 ${S} .root-dock { flex: none; padding: 6px 0 10px; background: #0a0a0a; }
+${S} .root-top { flex: none; padding: 0 0 8px; background: #0a0a0a; }
 ${S} .page-heading .eyebrow { color: #c5a47e; letter-spacing: .18em; }
 ${S} .group-title span { color: #c5a47e; }
 ${S} .hint { color: #a0a0a0; }
@@ -51,11 +52,10 @@ ${S} .root-reviews h3 { color: #c5a47e; font-size: 14px; margin: 8px 0; }
 ${S} .root-review { color: #a0a0a0; border-left: 2px solid #c5a47e; padding-left: 10px; margin: 8px 0; font-size: 13px; line-height: 1.6; }
 `;
 function ensureStyle(doc) {
-  if (!doc || doc.getElementById('root-app-style')) return;
-  const style = doc.createElement('style');
-  style.id = 'root-app-style';
-  style.textContent = STYLE;
-  doc.head.appendChild(style);
+  if (!doc) return;
+  let style = doc.getElementById('root-app-style');
+  if (!style) { style = doc.createElement('style'); style.id = 'root-app-style'; doc.head.appendChild(style); }
+  if (style.textContent !== STYLE) style.textContent = STYLE;
 }
 
 export function rootApp(ctx) {
@@ -142,8 +142,7 @@ export function rootApp(ctx) {
       if (!q) return true;
       return (p.文案 || '').toLowerCase().includes(q) || (p.标签 || '').toLowerCase().includes(q) || (t?.基础档案?.姓名 || '').toLowerCase().includes(q);
     });
-    return groupTitle(title, refreshBtn())
-      + searchBox()
+    return groupTitle(title)
       + (search ? `<p class="hint" style="margin:0 8px">搜索「${esc(search)}」<button type="button" class="text-button" data-action="root-clear-search">清除</button></p>` : '')
       + (rows.length ? `<div class="group root-feed">${rows.map(p => feedRow(p, state, allowApply)).join('')}</div>`
         : `<div class="group pad">${empty(search ? '没有匹配的帖子' : '还没有帖子', search ? '换个关键词试试。' : '点右上角刷新，刷出新猎物。', 'compass')}</div>`)
@@ -156,7 +155,7 @@ export function rootApp(ctx) {
     const p = t.基础档案, b = t.配种信息;
     const posts = [...(state.猎场流 || []), ...(state.广场流 || [])].filter(x => x.猎物ID === profileId);
     const reviews = Object.values(b.过往评价 || {});
-    return groupTitle('档案', btn('root-back', icon('back'), 'round-button', 'aria-label="返回"'))
+    return groupTitle('档案')
       + `<div class="root-profile-head">
           <div class="root-profile-avatar">${esc(String(p.姓名 || '?').charAt(0))}</div>
           <h2 class="root-profile-name">${esc(p.姓名)}</h2>
@@ -206,7 +205,10 @@ export function rootApp(ctx) {
   async function render() {
     ensureStyle(ctx.doc);
     const state = await api.rootState().catch(() => null) || {};
-    v.draw(`<div class="root-app"><div class="root-scroll">${heading('根源重塑', '', 'Root Rebirth') + subTabs() + renderPage(state)}</div><div class="root-dock">${bottomTabs()}</div></div>`);
+    const showSearch = !profileId && (sub === 'hunt-feed' || sub === 'showcase');
+    const head = heading('根源重塑', profileId ? btn('root-back', icon('back'), 'round-button', 'aria-label="返回"') : (showSearch ? refreshBtn() : ''), 'Root Rebirth')
+      + (profileId ? '' : subTabs()) + (showSearch ? searchBox() : '');
+    v.draw(`<div class="root-app"><div class="root-top">${head}</div><div class="root-scroll">${renderPage(state)}</div><div class="root-dock">${bottomTabs()}</div></div>`);
     loadPhotos();
   }
 
