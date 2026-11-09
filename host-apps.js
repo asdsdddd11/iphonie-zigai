@@ -305,10 +305,9 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       throw error;
     }
   }
-  /** 刷新后给新帖子自动配图。 */
-  function rootDrawNew(posts) {
-    if (settings().moments.images === false) return;
-    for (const p of posts || []) if (p.imageTags && !p.photoId) rootDrawImage(p.id).catch(() => {});
+  /** 不自动画图：刷新后只显示「点一下画出来」，由用户决定画哪张。 */
+  function rootDrawNew() {
+    return;
   }
   /** 私聊：按根源里的档案在小手机建一个角色，再放进当前卡的通讯录；和用户对话后这个人归用户，进马厩。 */
   async function rootAddContact(targetId) {
