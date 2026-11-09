@@ -206,6 +206,8 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const fresh = [];
       const now = Date.now();
       for (const f of targets) {
+        const name = String(f['姓名'] || '').trim();
+        if (!name || existing.includes(name)) continue;
         const id = crypto.randomUUID();
         const target = huntToTarget(f);
         const ri = RATINGS.indexOf(target.基础档案.评级);
@@ -239,7 +241,8 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const fresh = [];
       const now = Date.now();
       for (const f of targets) {
-        const name = f['作者'];
+        const name = String(f['作者'] || '').trim();
+        if (!name || name === me) continue;
         const id = Object.entries(state.猎物库).find(([, t]) => t.基础档案?.姓名 === name)?.[0];
         if (id) fresh.push(huntToFeed(f, id, now));
       }
