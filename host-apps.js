@@ -7,7 +7,7 @@ import {storyLines, pickCrowd, activityNames} from './core/moments.js';
 import {inSpace, activeChatPreset, cleanTagged} from './core/chat.js';
 import {worldInfoFor, loreOptions} from './host-lore.js';
 import {pictureInputs, sizeFor, photoPicture} from './core/draw.js';
-import {HUNT_PROMPT, SHOW_PROMPT, parseHunt, parseShow, huntToTarget, huntToFeed} from './core/root.js';
+import {HUNT_PROMPT, SHOW_PROMPT, parseHunt, parseShow, huntToTarget, huntToFeed, stageOf} from './core/root.js';
 
 const PEOPLE = 12;
 
@@ -227,9 +227,16 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const {preset} = base();
       const state = await backend.rootState();
       const me = userName();
-      const existing = Object.values(state.猎物库 || {}).map(t => t.基础档案?.姓名).filter(n => n && n !== me);
-      if (!existing.length) throw Error('还没有猎物，先刷猎场');
-      const askText = query ? `搜索「${query}」：只生成 1 条广场帖子，就是这个搜索词对应的便器。禁止生成多个，禁止生成不相干的人。已有便器：${existing.join('、')}。用户叫「${me}」，作者和评论者都不能是用户本人。` : `已有便器：${existing.join('、')}。生成广场帖子，作者从这些里选。用户叫「${me}」，作者和评论者都不能是用户本人，配文必须出现便器真名。`;
+      // 广场的便器必须是「有主」的（当前配种者不是「无」，也不是用户自己）——猎场那些无主求治者不算。
+      const 有主 = Object.values(state.猎物库 || {})
+        .filter(t => {
+          const owner = String(t.配种信息?.当前配种者 || '').trim();
+          return t.基础档案?.姓名 && owner && owner !== '无' && owner !== me;
+        })
+        .map(t => `${t.基础档案.姓名}（主人 ${t.配种信息.当前配种者}）`);
+      const askText = query
+        ? `搜索「${query}」：只生成 1 条广场帖子，就是这个搜索词对应的配种者或他的便器。禁止生成多个，禁止生成不相干的人。现有有主便器：${有主.join('、') || '（空，可以新造）'}。用户叫「${me}」，发布配种者和评论者都不能是用户本人。`
+        : `现有有主便器：${有主.join('、') || '（空，可以新造）'}。生成广场帖子：可以写上面这些配种者的便器，也可以造新的有主便器（必须有主人）。用户叫「${me}」，发布配种者和评论者都不能是用户本人，配文必须出现便器真名。`;
       const prompt = [
         {role: 'system', content: SHOW_PROMPT},
         {role: 'user', content: askText},
@@ -240,15 +247,30 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const targets = query ? show.slice(0, 1) : show;
       const fresh = [];
       const now = Date.now();
+      const 猎物库 = { ...state.猎物库 };
       for (const f of targets) {
         const 便器名 = String(f['涉及便器'] || f['作者'] || '').trim();
         const 发布配种者 = String(f['发布配种者'] || '').trim();
         if (!便器名 || !发布配种者 || 发布配种者 === me) continue;
-        const id = Object.entries(state.猎物库).find(([, t]) => t.基础档案?.姓名 === 便器名)?.[0];
-        if (id) fresh.push(huntToFeed(f, id, now));
+        let id = Object.entries(猎物库).find(([, t]) => t.基础档案?.姓名 === 便器名)?.[0];
+        if (!id) {
+          // 广场新造的便器：不是猎场的无主求治者，直接就是发布配种者的所有物。
+          id = crypto.randomUUID();
+          const target = huntToTarget(f);
+          const count = Math.max(1, Number(f['配种次数']) || 1);
+          target.配种信息.配种次数 = count;
+          target.配种信息.开发阶段 = stageOf(count);
+          target.配种信息.当前配种者 = 发布配种者;
+          target.配种信息.经手配种者 = { H_1: 发布配种者 };
+          猎物库[id] = target;
+        } else {
+          const owner = String(猎物库[id].配种信息?.当前配种者 || '').trim();
+          if (!owner || owner === '无') continue; // 猎场的无主求治者不进气广场
+        }
+        fresh.push(huntToFeed(f, id, now));
       }
       const 广场流 = query ? [...fresh, ...(state.广场流 || [])] : fresh;
-      await backend.saveRoot({ 广场流 });
+      await backend.saveRoot({ 广场流, 猎物库 });
       rootDrawNew(fresh);
       return fresh.length;
     });

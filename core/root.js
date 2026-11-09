@@ -159,6 +159,7 @@ export const SHOW_PROMPT = `${SHOW_LORE}
 发布配种者：xx（网名或代号，像「屠夫李」「暗夜主宰」「黑桃K」「毒蛇」，绝对不是中文真名）
 配种者等级：x（2 到 5）
 涉及便器：xx（这个便器的真名）
+档案：姓名｜评级｜疾病｜年龄｜外貌｜外貌tag｜职业｜籍贯｜口音｜性格｜隐藏习惯｜体型｜身高｜体重｜尺寸描述｜配种次数
 文案：xx（必须出现这个便器的真名）
 媒体描述：xx（一张照片拍到的画面，至少两三句）
 标签：xx（至少 5 个）
@@ -185,8 +186,19 @@ export function parseHunt(reply) {
   return parseBlocks(reply, '猎物').filter(f => f['姓名']);
 }
 
+/** 广场帖子里「档案」那一行（姓名｜评级｜疾病…）按顺序填回字段，用于新造有主便器。 */
+const SHOW_KEYS = ['姓名', '评级', '疾病', '年龄', '外貌', '外貌tag', '职业', '籍贯', '口音', '性格', '隐藏习惯', '体型', '身高', '体重', '尺寸描述', '配种次数'];
+function expandArchive(f, keys) {
+  const raw = String(f['档案'] || '').trim();
+  if (!raw) return f;
+  const parts = raw.split(/[｜|]/).map(s => s.trim());
+  const out = { ...f };
+  keys.forEach((k, i) => { if (parts[i]) out[k] = parts[i]; });
+  return out;
+}
+
 export function parseShow(reply) {
-  return parseBlocks(reply, '广场').filter(f => f['发布配种者'] || f['涉及便器'] || f['作者']);
+  return parseBlocks(reply, '广场').map(f => expandArchive(f, SHOW_KEYS)).filter(f => f['发布配种者'] || f['涉及便器'] || f['作者']);
 }
 
 // 世界书 [4]：开发阶段由配种次数决定。
