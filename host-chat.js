@@ -161,7 +161,7 @@ export function createChatHost({context, settings, backend, notice, memory = nul
       // 角色生活记忆：朋友圈和查手机内容已压缩成摘要存进 life book，这里只读摘要（省 token）。
       let life = '';
       if (thread.type === 'dm' && thread.members[0]) {
-        try { life = memory ? await memory.lifeContext(thread.members[0]).catch(() => '') : ''; } catch { life = ''; }
+        try { life = memory ? await memory.lifeContext(thread.members[0], {query}).catch(() => '') : ''; } catch { life = ''; }
       }
       const remembered = (memory ? (await memory.contextFor(thread, {query}).catch(() => ({text: ''}))).text : '') + (life ? `${life}\n\n` : '');
       const request = pics => buildChatRequest({prompts: settings().promptRules, preset, thread, members: people, story: recent, user, userPersona: userPersona(), voiceFormat, lore, forum, groups: shared, memory: remembered, earlier: memory?.storyMemory() || '', images: !!backend.drawReady?.(), stickers: stickersFor(people.map(p => p.name)), nudge, cue, time: time || Date.now(), statuses: statusesOf(people), peeked: peekedNow ? peekedNow.what || true : '', posts, outfit, pats: Object.fromEntries(people.map(p => [p.name, suffixOf(p.name)]).filter(([, s]) => s)), music: {share: s.music?.share !== false, listening: s.music?.share !== false ? backend.listening : null}, pictures: pics});

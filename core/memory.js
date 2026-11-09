@@ -19,6 +19,8 @@ export function defaultMemory() {
 }
 /** Extension prompts of memory plugins the phone knows by name (any other can be picked by hand). */
 export const STORY_MEMORY = Object.freeze({bakemono_memory: '剧情剪辑台', '1_memory': '酒馆总结'});
+/** 正文摘要（小手机自己做，不依赖记忆插件）：把一段正文写成能接着聊的剧情摘要。 */
+export const STORY_SUMMARY_PROMPT = `你在整理这段剧情的正文，写成一段以后能直接拿来接着聊的剧情摘要（300 到 600 字）。要留下：谁和谁发生了什么、关系的变化、承诺和约定、没解决的事、重要的时间地点和细节。只根据下面的正文写，没写到的不要补、不编造。直接写正文，不要标题。`;
 /** The story memory other plugins put into the tavern's extension prompts, for the phone's requests ('' without). */
 export function storyMemoryText(prompts, keys, cap = 4000) {
   const parts = [];
@@ -253,4 +255,23 @@ export function recall(pieces, query, {limit = 3, vectors = null} = {}) {
 }
 export function recallText(found, {who = ''} = {}) {
   return found.length ? `【想起来的旧聊天】（和现在聊的有关的${who}更早的原话，只作参考）\n` + found.map(p => p.text).join('\n……\n') : '';
+}
+
+/** 把一组条目（{text, at}）切成片段，给向量召回用：每片 {id, from, to, text}。 */
+export function chunkTexts(items, {size = 1500} = {}) {
+  const out = [];
+  let buf = '', from = 0, to = 0;
+  for (const it of items || []) {
+    const t = String(it?.text ?? '').trim();
+    if (!t) continue;
+    if (buf && buf.length + t.length + 1 > size) {
+      out.push({id: 'c' + out.length, from, to, text: buf});
+      buf = '';
+    }
+    if (!buf) from = Number(it.at) || 0;
+    buf += (buf ? '\n' : '') + t;
+    to = Number(it.at) || to;
+  }
+  if (buf.trim()) out.push({id: 'c' + out.length, from, to, text: buf});
+  return out;
 }

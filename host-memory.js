@@ -3,8 +3,8 @@
 // layers and the older messages that match what is being talked about now. Writing uses the 文字模型 and costs one
 // request per summary; searching is local unless a 向量模型 is set up.
 import {currentDm} from './core/chats.js';
-import {nextBatch, nextMerge, addNode, buildMemoryRequest, parseMemory, memoryText, chunks, recall, recallText, textKey, transcript, roots, storyMemoryText, unwritten, STORY_MEMORY, levelName, span} from './core/memory.js';
-import {activeChatPreset, inSpace} from './core/chat.js';
+import {nextBatch, nextMerge, addNode, buildMemoryRequest, parseMemory, memoryText, chunks, chunkTexts, recall, recallText, textKey, transcript, roots, storyMemoryText, unwritten, STORY_MEMORY, STORY_SUMMARY_PROMPT, levelName, span} from './core/memory.js';
+import {activeChatPreset, inSpace, plainStory} from './core/chat.js';
 
 // How many requests one go may make: after a reply only a little (a long backlog is caught up over several replies),
 // when the user asks for it more.
@@ -13,6 +13,7 @@ const AUTO_STEPS = 2, MANUAL_STEPS = 12;
 export function createMemoryHost({context, settings, backend, notice = () => {}}) {
   const busy = new Map(), status = new Map();
   let storyText = '', storyTimer = 0, storyRun = 0, storyError = '', storyDone = Promise.resolve(), storyFor = null, closed = false;
+  let storyCtx = '', storyBusy = null;
   // Which card the story memory is for (the open character, or the group).
   const cardKey = () => { const ctx = context(); return ctx ? `${ctx.groupId || ''}|${ctx.name2 || ''}` : ''; };
   const userName = () => context()?.name1 || '我';
@@ -83,6 +84,25 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
       return null;
     }
   }
+  /** 片段向量（生活记忆/正文记忆用）：和聊天记忆同一套 backend.embed + memoryVectors 缓存，key 用 bookId。 */
+  async function vectorsFor(key, pieces, query) {
+    if (!backend.embedReady() || !pieces.length || !String(query || '').trim()) return null;
+    try {
+      const model = settings().embed.model + '@' + settings().embed.url;
+      const saved = await backend.memoryVectors(key), items = saved?.model === model ? {...saved.items} : {};
+      const missing = [...new Set(pieces.map(p => textKey(p.text)))].filter(k => !items[k]);
+      const texts = new Map(pieces.map(p => [textKey(p.text), p.text]));
+      if (missing.length) {
+        const made = await backend.embed(missing.map(k => texts.get(k)));
+        missing.forEach((k, i) => { items[k] = made[i]; });
+        const keep = new Set(pieces.map(p => textKey(p.text)));
+        for (const k of Object.keys(items)) if (!keep.has(k)) delete items[k];
+        await backend.memorySaveVectors(key, {model, items});
+      }
+      const [q] = await backend.embed([query]);
+      return new Map([...Object.entries(items), ['query', q]]);
+    } catch { return null; }
+  }
 
   /**
    * What a chat remembers, for a request: the written-up layers and, when `query` (the latest messages) is given, the
@@ -136,6 +156,8 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
         const o = options(), ctx = context();
         if (!ctx) { put(''); return; }
         if (o.story) await moveOldSwitch(ctx);
+        // 正文摘要：先拿现成的，再后台把新正文补进摘要。
+        if (o.story) { storyCtx = await storyContext().catch(() => '') || ''; tidyStory().catch(() => {}); }
         // 一直带着: the chats (of the card open now) the user marked, each with its written-up memory and every message
         // not written up yet, so nothing in between is missed; too many of those: the newest, and a write-up now.
         // Only the chats of the card open now: made in it, or with one of its characters.
@@ -198,8 +220,73 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
   // when the open card or the settings change).
   const unsubscribe = backend.subscribe?.(event => { if (event.type === 'chat' && !event.typing || event.type === 'memory' && event.reset) refreshStory(); });
 
-  /** 更早的剧情: what the picked memory plugins put into the tavern's extension prompts. */
-  function storyMemory() { return storyMemoryText(context()?.extensionPrompts, options().storyKeys); }
+  // ---------- 正文记忆：小手机自己把正文做成分层摘要，更早的剧情不丢（不依赖记忆插件） ----------
+  const storyBookId = () => 'story:' + cardKey();
+  /** 正文里能读的消息（跳过系统消息），清理掉数据块，每条 {name, text}。 */
+  function storyEntries() {
+    const user = userName();
+    return (context()?.chat || []).filter(m => m && !m.is_system && String(m.mes ?? '').trim())
+      .map(m => ({name: m.name || (m.is_user ? user : '旁白'), text: plainStory(m.mes)}))
+      .filter(e => e.text);
+  }
+  /** 把还没摘要的正文分批写成 level-0 摘要，再分层合并；最近 keep 条保留原文。 */
+  function tidyStory({force = false} = {}) {
+    if (storyBusy) return storyBusy;
+    const job = (async () => {
+      const o = options();
+      if (!o.enabled) return 0;
+      const entries = storyEntries();
+      const book = await backend.memoryBook(storyBookId());
+      const keep = 6, batch = 20;
+      const done = Number(book.throughAt) || 0;
+      const available = Math.max(0, entries.length - keep);
+      if (available - done < (force ? 4 : batch)) return 0;
+      const slice = entries.slice(done, Math.min(available, done + (force ? batch * 2 : batch)));
+      const lines = slice.map(e => `${e.name}：${e.text}`);
+      if (!lines.length) return 0;
+      const summary = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: [
+        {role: 'system', content: STORY_SUMMARY_PROMPT},
+        {role: 'user', content: `正文：\n${lines.join('\n')}`},
+      ], trimNames: false}));
+      await backend.memoryChange(storyBookId(), cur => {
+        const next = addNode(cur, {level: 0, text: summary, from: Date.now(), to: Date.now(), count: slice.length});
+        next.throughAt = done + slice.length;
+        return next;
+      }, 'story', book);
+      let written = 1;
+      for (let step = 0; step < 2; step++) {
+        const current = await backend.memoryBook(storyBookId());
+        const merge = nextMerge(current, {stage: 3, epic: 4});
+        if (!merge) break;
+        const mtext = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: [
+          {role: 'system', content: `你在整理正文剧情：把下面几段按时间排好的${levelName(merge.level - 1)}合成一份「${levelName(merge.level)}」。先按时间说清主线和转折，再写关系的变化、承诺、没解决的事；前后矛盾以后面的为准。只根据下面内容写，不编造。直接写正文，不要标题。`},
+          {role: 'user', content: merge.nodes.map(n => `【${levelName(n.level)} · ${span(n.from, n.to)}】\n${n.text}`).join('\n\n')},
+        ], trimNames: false}));
+        await backend.memoryChange(storyBookId(), cur => addNode(cur, {level: merge.level, text: mtext, covers: merge.nodes.map(n => n.id)}), 'story', current);
+        written++;
+      }
+      return written;
+    })().finally(() => { storyBusy = null; });
+    storyBusy = job;
+    return job;
+  }
+  /** 正文摘要文本，放进「更早的剧情」。query（默认最近正文）：向量/关键词召回相关的更早正文。 */
+  async function storyContext(cap = 3000, query = '') {
+    if (!options().enabled) return '';
+    const book = await backend.memoryBook(storyBookId());
+    const kept = memoryText(book, {who: '剧情', cap});
+    let found = [];
+    const entries = storyEntries();
+    const q = String(query || '').trim() || entries.slice(-4).map(e => e.text).join('\n');
+    if (q) {
+      const pieces = chunkTexts(entries);
+      if (pieces.length) found = recall(pieces, q, {limit: 2, vectors: await vectorsFor(storyBookId(), pieces, q)});
+    }
+    return [kept, recallText(found, {who: '剧情'})].filter(Boolean).join('\n\n');
+  }
+
+  /** 更早的剧情: 小手机自己的正文摘要优先，没有再读记忆插件放进 extension prompt 的。 */
+  function storyMemory() { return storyCtx || storyMemoryText(context()?.extensionPrompts, options().storyKeys); }
   /** Every extension prompt there is now (not the phone's own), for picking which hold story memory. */
   function storySources() {
     const prompts = context()?.extensionPrompts || {}, picked = new Set(options().storyKeys);
@@ -212,36 +299,36 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
 
   // ---------- 生活记忆：朋友圈动态 + 论坛发言 + 查手机快照，压缩成摘要存进 life book（threadId = 'life:名字'） ----------
   const lifeBook = name => 'life:' + name;
-  /** 拉取一个角色的全部生活内容（朋友圈、论坛发言、查手机快照），拼成待压缩的文本。 */
-  async function lifeSource(name) {
-    const parts = [];
+  /** 拉一个角色的生活条目（朋友圈/查手机/论坛），每条 {text, at}。 */
+  async function lifeItems(name) {
+    const items = [];
     try {
       const here = backend.here?.();
       const moments = (await backend.moments.list()).filter(p => p.author === name && p.text && (!here || inSpace(p, here)));
-      if (moments.length) parts.push('朋友圈：\n' + moments.slice(-6).map(p => `- ${p.text}`).join('\n'));
+      for (const p of moments.slice(-20)) items.push({text: `朋友圈：${p.text}`, at: p.at || 0});
     } catch {}
     try {
       const peek = (await backend.apps.list('peek')).find(p => p.name === name);
       if (peek) {
-        const lines = [];
-        if (peek.notes?.length) lines.push(`备忘录：${peek.notes.map(n => n.title ? `${n.title}：${n.text}` : n.text).join('；')}`);
-        if (peek.cart?.length) lines.push(`想买：${peek.cart.map(c => `${c.name}${c.note ? '（' + c.note + '）' : ''}`).join('、')}`);
-        if (peek.searches?.length) lines.push(`搜过：${peek.searches.join('、')}`);
-        if (peek.chats?.length) lines.push(`和别人聊：${peek.chats.map(c => `${c.with}（${c.lines.slice(-2).map(l => `${l.from}：${l.text}`).join('；')}）`).join('；')}`);
-        if (lines.length) parts.push('手机里的生活：\n' + lines.map(l => `- ${l}`).join('\n'));
+        if (peek.notes?.length) for (const n of peek.notes) items.push({text: `备忘录：${n.title ? n.title + '：' : ''}${n.text}`, at: peek.at || 0});
+        if (peek.cart?.length) items.push({text: `想买：${peek.cart.map(c => `${c.name}${c.note ? '（' + c.note + '）' : ''}`).join('、')}`, at: peek.at || 0});
+        if (peek.searches?.length) items.push({text: `搜过：${peek.searches.join('、')}`, at: peek.at || 0});
+        if (peek.chats?.length) for (const c of peek.chats) items.push({text: `和别人聊（${c.with}）：${c.lines.slice(-2).map(l => `${l.from}：${l.text}`).join('；')}`, at: peek.at || 0});
       }
     } catch {}
     try {
       const here = backend.here?.();
       const forum = (await backend.apps.list('forum')).filter(p => !here || inSpace(p, here));
-      const forumLines = [];
       for (const p of forum) {
-        if (p.author === name) forumLines.push(`发帖「${p.title || '（无标题）'}」：${p.text}`);
-        for (const r of (p.replies || [])) if (r.from === name) forumLines.push(`在「${p.title || '（无标题）'}」下回复：${r.text}`);
+        if (p.author === name) items.push({text: `论坛发帖「${p.title || '（无标题）'}」：${p.text}`, at: p.at || 0});
+        for (const r of (p.replies || [])) if (r.from === name) items.push({text: `论坛回复「${p.title || '（无标题）'}」：${r.text}`, at: r.at || p.at || 0});
       }
-      if (forumLines.length) parts.push('论坛发言：\n' + forumLines.slice(-8).map(l => `- ${l}`).join('\n'));
     } catch {}
-    return parts.join('\n\n');
+    return items;
+  }
+  /** 拉取一个角色的全部生活内容（朋友圈、论坛发言、查手机快照），拼成待压缩的文本。 */
+  async function lifeSource(name) {
+    return (await lifeItems(name)).map(i => `- ${i.text}`).join('\n');
   }
   async function tidyLife(name) {
     if (!options().enabled) return 0;
@@ -271,21 +358,29 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
     }
     return written;
   }
-  async function lifeContext(name, {cap = 1000} = {}) {
+  async function lifeContext(name, {cap = 1000, query = ''} = {}) {
     const book = await backend.memoryBook(lifeBook(name));
     const list = roots(book);
-    if (!list.length) return '';
-    const keep = new Set();
-    let used = 0;
-    for (const n of list.slice().sort((a, b) => b.level - a.level || a.from - b.from)) {
-      const cost = n.text.length + 30;
-      if (used + cost > cap && keep.size) continue;
-      keep.add(n.id); used += cost;
+    let kept = '';
+    if (list.length) {
+      const keep = new Set();
+      let used = 0;
+      for (const n of list.slice().sort((a, b) => b.level - a.level || a.from - b.from)) {
+        const cost = n.text.length + 30;
+        if (used + cost > cap && keep.size) continue;
+        keep.add(n.id); used += cost;
+      }
+      kept = `【${name}的生活】（朋友圈、论坛和手机里的事，按时间整理成的）\n` + list.filter(n => keep.has(n.id)).map(n => `- ${levelName(n.level)}（${span(n.from, n.to)}）：${n.text}`).join('\n');
     }
-    return `【${name}的生活】（朋友圈、论坛和手机里的事，按时间整理成的）\n` + list.filter(n => keep.has(n.id)).map(n => `- ${levelName(n.level)}（${span(n.from, n.to)}）：${n.text}`).join('\n');
+    let found = [];
+    if (String(query || '').trim()) {
+      const pieces = chunkTexts(await lifeItems(name));
+      if (pieces.length) found = recall(pieces, query, {limit: 2, vectors: await vectorsFor(lifeBook(name), pieces, query)});
+    }
+    return [kept, recallText(found, {who: name})].filter(Boolean).join('\n\n');
   }
   return {
-    storyMemory, storySources,
+    storyMemory, storySources, storyContext, tidyStory,
     tidy, after, contextFor, aboutPeople, storyPlan, storyReady, refreshStory, tidyLife, lifeContext,
     status: threadId => ({...status.get(threadId), busy: busy.has(threadId), ...(storyError ? {storyError} : {})}),
     close() { closed = true; clearTimeout(storyTimer); unsubscribe?.(); }
