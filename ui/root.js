@@ -214,6 +214,8 @@ export function rootApp(ctx) {
         <span class="k">肉体维度</span><span class="v">${esc(p.体型 || '?')}</span>
         <span class="k">精神刻写</span><span class="v">${esc(p.性格 || '?')}</span>
         <span class="k">外貌</span><span class="v">${esc(p.外貌 || '?')}</span>
+        <span class="k">口音</span><span class="v">${esc(p.口音 || '—')}</span>
+        <span class="k">隐藏习惯</span><span class="v">${esc(p.隐藏习惯 || '—')}</span>
         <span class="k">性器规格</span><span class="v">${esc(p.尺寸描述 || '?')}</span>
         <span class="k">开发记录</span><span class="v" style="color:#c5a47e;font-weight:700">已配种 ${esc(b.配种次数 || 0)} 次 · Lv.${esc(b.开发阶段 || 0)} ${esc(STAGES[b.开发阶段] || '')}</span>
       </div>
