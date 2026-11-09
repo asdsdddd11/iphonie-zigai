@@ -1,4 +1,5 @@
 // 根源重塑 App：线上独立于正文。猎场 / 便器广场是帖子流，刷新覆盖、搜索置顶；头像可点进档案，配图可画可看大图。
+// 样式全部限定在 .view[data-app=root] 里，不碰小手机的通用 UI；内容区自己滚，底部导航固定。
 import {createView, esc, btn, heading, groupTitle, empty, avatar} from './common.js';
 import {icon} from './icons.js';
 import {previewBlob} from './thumbs.js';
@@ -13,37 +14,41 @@ const TABS = [
 const LEVELS = {1: '体验者', 2: '播种机', 3: '调教师', 4: '处刑官', 4.5: '准牧场主', 5: '牧场主'};
 const STAGES = {0: '未调教', 1: '初诊期', 2: '崩坏期', 3: '成瘾期', 4: '改写期', 5: '重塑期'};
 
-// 只给根源 App 自己的组件加样式，不碰通用类（避免和皮肤/通用 UI 冲突）。
+const S = '.view[data-app=root]';
 const STYLE = `
-.root-app { background: #0a0a0a; min-height: 100%; padding: 0 12px 20px; color: #e8e8e8; }
-.root-app .page-heading .eyebrow { color: #c5a47e; letter-spacing: .18em; }
-.root-app .group-title span { color: #c5a47e; }
-.root-app .hint { color: #a0a0a0; }
-.root-app .plate { color: #c5a47e; border: 1px solid #c5a47e; border-radius: 4px; padding: 1px 5px; font-size: 11px; }
-.root-app .chip-button { background: #1f1f1f; color: #c5a47e; border: 1px solid #2a2a2a; border-radius: 999px; }
-.root-search input { border: 1px solid #2a2a2a; background: #141414; color: #e8e8e8; border-radius: 8px; padding: 8px 10px; flex: 1; }
-.root-post { background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px; margin: 10px 0; }
-.root-post-head { display: flex; align-items: center; gap: 10px; }
-.root-avatar { border: 2px solid #c5a47e; border-radius: 50%; padding: 0; background: #0a0a0a; overflow: hidden; }
-.root-post-name { display: flex; align-items: center; gap: 6px; }
-.root-post-text { color: #e8e8e8; margin: 10px 0; line-height: 1.7; }
-.root-post-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.root-post-comments { background: #1f1f1f; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
-.root-post-comments p { color: #a0a0a0; margin: 3px 0; font-size: 13px; }
-.root-post-comments b { color: #c5a47e; }
-.root-post-actions { display: flex; gap: 8px; margin-top: 10px; }
-.root-photo img { border: 1px solid #2a2a2a; }
-.root-profile-head { text-align: center; padding: 14px 0 8px; }
-.root-profile-avatar { width: 64px; height: 64px; border-radius: 50%; border: 2px solid #c5a47e; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 24px; color: #c5a47e; background: #1f1f1f; }
-.root-profile-name { color: #e8e8e8; margin: 4px 0; font-size: 20px; }
-.root-profile-meta { color: #a0a0a0; font-size: 13px; }
-.root-profile-meta .rating { color: #c5a47e; }
-.root-info-grid { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; padding: 14px; background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; margin: 10px 0; }
-.root-info-grid .grid-key { color: #666; font-size: 12px; }
-.root-info-grid .grid-val { color: #e8e8e8; font-size: 13px; }
-.root-reviews { margin: 12px 0; }
-.root-reviews h3 { color: #c5a47e; font-size: 14px; margin: 8px 0; }
-.root-review { color: #a0a0a0; border-left: 2px solid #c5a47e; padding-left: 10px; margin: 8px 0; font-size: 13px; line-height: 1.6; }
+${S} { display: flex; flex-direction: column; padding: 0; overflow: hidden; background: #0a0a0a; }
+${S} .root-app { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0 12px; color: #e8e8e8; }
+${S} .root-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 0 12px; scrollbar-width: none; }
+${S} .root-scroll::-webkit-scrollbar { display: none; }
+${S} .root-dock { flex: none; padding: 6px 0 10px; background: #0a0a0a; }
+${S} .page-heading .eyebrow { color: #c5a47e; letter-spacing: .18em; }
+${S} .group-title span { color: #c5a47e; }
+${S} .hint { color: #a0a0a0; }
+${S} .plate { color: #c5a47e; border: 1px solid #c5a47e; border-radius: 4px; padding: 1px 5px; font-size: 11px; }
+${S} .chip-button { background: #1f1f1f; color: #c5a47e; border: 1px solid #2a2a2a; border-radius: 999px; }
+${S} .root-search input { border: 1px solid #2a2a2a; background: #141414; color: #e8e8e8; border-radius: 8px; padding: 8px 10px; flex: 1; }
+${S} .root-post { background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px; margin: 10px 0; }
+${S} .root-post-head { display: flex; align-items: center; gap: 10px; }
+${S} .root-avatar { border: 2px solid #c5a47e; border-radius: 50%; padding: 0; background: #0a0a0a; overflow: hidden; }
+${S} .root-post-name { display: flex; align-items: center; gap: 6px; }
+${S} .root-post-text { color: #e8e8e8; margin: 10px 0; line-height: 1.7; }
+${S} .root-post-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+${S} .root-post-comments { background: #1f1f1f; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+${S} .root-post-comments p { color: #a0a0a0; margin: 3px 0; font-size: 13px; }
+${S} .root-post-comments b { color: #c5a47e; }
+${S} .root-post-actions { display: flex; gap: 8px; margin-top: 10px; }
+${S} .root-photo img { border: 1px solid #2a2a2a; }
+${S} .root-profile-head { text-align: center; padding: 14px 0 8px; }
+${S} .root-profile-avatar { width: 64px; height: 64px; border-radius: 50%; border: 2px solid #c5a47e; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 24px; color: #c5a47e; background: #1f1f1f; }
+${S} .root-profile-name { color: #e8e8e8; margin: 4px 0; font-size: 20px; }
+${S} .root-profile-meta { color: #a0a0a0; font-size: 13px; }
+${S} .root-profile-meta .rating { color: #c5a47e; }
+${S} .root-info-grid { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; padding: 14px; background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; margin: 10px 0; }
+${S} .root-info-grid .grid-key { color: #666; font-size: 12px; }
+${S} .root-info-grid .grid-val { color: #e8e8e8; font-size: 13px; }
+${S} .root-reviews { margin: 12px 0; }
+${S} .root-reviews h3 { color: #c5a47e; font-size: 14px; margin: 8px 0; }
+${S} .root-review { color: #a0a0a0; border-left: 2px solid #c5a47e; padding-left: 10px; margin: 8px 0; font-size: 13px; line-height: 1.6; }
 `;
 function ensureStyle(doc) {
   if (!doc || doc.getElementById('root-app-style')) return;
@@ -84,7 +89,7 @@ export function rootApp(ctx) {
   }
 
   function bottomTabs() {
-    return `<nav class="segmented" style="margin:8px 0 0;flex-wrap:nowrap">${TABS.map(([id, name]) =>
+    return `<nav class="segmented" style="flex-wrap:nowrap">${TABS.map(([id, name]) =>
       `<button type="button" data-action="root-tab" data-tab="${id}" aria-pressed="${tab === id}">${name}</button>`).join('')}</nav>`;
   }
   function subTabs() {
@@ -201,7 +206,7 @@ export function rootApp(ctx) {
   async function render() {
     ensureStyle(ctx.doc);
     const state = await api.rootState().catch(() => null) || {};
-    v.draw(`<div class="root-app">${heading('根源重塑', '', 'Root Rebirth') + subTabs() + renderPage(state) + bottomTabs()}</div>`);
+    v.draw(`<div class="root-app"><div class="root-scroll">${heading('根源重塑', '', 'Root Rebirth') + subTabs() + renderPage(state)}</div><div class="root-dock">${bottomTabs()}</div></div>`);
     loadPhotos();
   }
 
