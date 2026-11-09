@@ -52,7 +52,9 @@ function normalizeTarget(t = {}) {
 function normalizeFeed(rows) {
   return (Array.isArray(rows) ? rows : []).slice(-ROOT_LIMITS.feeds).map(p => ({
     id: clip(p.id, 100) || crypto.randomUUID(),
+    归属便器ID: clip(p.归属便器ID || p.猎物ID, 100), 涉及便器ID: clip(p.涉及便器ID || p.猎物ID, 100),
     猎物ID: clip(p.猎物ID, 100),
+    发布配种者: clip(p.发布配种者, 40), 配种者等级: Math.min(5, Math.max(0, num(p.配种者等级, 0))),
     文案: clip(p.文案, ROOT_LIMITS.text), 媒体类型: p.媒体类型 === 'video' ? 'video' : 'image',
     媒体描述: clip(p.媒体描述, ROOT_LIMITS.text), 标签: clip(p.标签, ROOT_LIMITS.tags),
     评论区: (Array.isArray(p.评论区) ? p.评论区 : []).slice(0, ROOT_LIMITS.comments).map(c => ({ 留言者: clip(c.留言者, 40), 内容: clip(c.内容, 200) })).filter(c => c.内容),
@@ -154,19 +156,21 @@ export const HUNT_PROMPT = `你在为「根源重塑」暗网平台生成猎场�
 一次生成 6 个猎场帖子，其中至少 3 个是配种次数为 0、完全没被调教过的新人，顺序打乱。彼此人设、职业、疾病、语气都不重复。全部新造，不要照搬示例。`;
 
 // ---------- 便器广场生成 ----------
-export const SHOW_PROMPT = `你在为「根源重塑」暗网平台生成便器广场帖子。发帖的是已经被配种、正在开发中的便器，展示成果、炫耀、分享或求助。
+export const SHOW_PROMPT = `你在为「根源重塑」暗网平台生成便器广场帖子。发帖的是配种者，分享自己的便器、炫耀成果、求助、交流手法。
 
 硬规则：
-- 作者绝对不能是用户本人，评论者也绝对不能是用户本人。
-- 配文里必须出现发帖便器的真名。
+- 发布配种者绝对不能是用户本人，评论者也绝对不能是用户本人。
+- 配文里必须出现涉及便器的真名。
 - 标签至少 5 个。
 - 评论区 2 到 3 条。
 
 每个帖子严格按下面格式输出一个块：
 
 【广场】
-作者：xx（已配种便器的名字，不能是用户本人）
-文案：xx（30字以上，必须出现这个便器自己的真名，炫耀/分享/求助，含主人赐予、调教、沦陷、身体变化等，口语，符合该便器的人设）
+发布配种者：xx（配种者的网名，不能是用户本人）
+配种者等级：x（2 到 5 之间的整数）
+涉及便器：xx（这个便器的真名）
+文案：xx（30字以上，配种者视角，必须出现这个便器自己的真名，炫耀/分享/求助，含怎么开发的、用了什么、对方什么反应）
 媒体描述：xx（照片或视频拍到的画面，至少两三句，外貌和身材写细）
 标签：#xx #xx #xx #xx #xx（至少 5 个）
 配图：英文 danbooru tag，必须贴合上面写的外貌、体型、职业和穿着（在干什么、在哪），只描述画面本身；拍到人就写人数、动作、地点和构图；露骨画面可以写 nsfw 等成人 tag；不写发色/瞳色/发型，插件会带上存好的外貌
@@ -174,7 +178,7 @@ export const SHOW_PROMPT = `你在为「根源重塑」暗网平台生成便器�
 评论2：留言者名：内容
 评论3：留言者名：内容
 
-一次生成 2 到 3 个广场帖子，彼此语气、内容不重复。作者必须从提供的已有便器名字里选，作者和评论者都不能是用户本人，配文必须出现便器真名。`;
+一次生成 3 到 6 个广场帖子，彼此的级别、作风、口气都不同。发布配种者从提供的人里选，评论者也必须是配种者，都不能是用户本人。`;
 
 function parseBlocks(reply, tag) {
   const text = String(reply || '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').replace(/```[a-z]*\n?|```/g, '').trim();
@@ -195,7 +199,7 @@ export function parseHunt(reply) {
 }
 
 export function parseShow(reply) {
-  return parseBlocks(reply, '广场').filter(f => f['作者']);
+  return parseBlocks(reply, '广场').filter(f => f['发布配种者'] || f['涉及便器'] || f['作者']);
 }
 
 // 世界书 [4]：开发阶段由配种次数决定。
@@ -241,6 +245,12 @@ export function huntToFeed(f, 猎物ID, at) {
     const [留言者, 内容] = f[k].split(/[：:]/).map(s => (s || '').trim());
     if (留言者 && 内容) comments.push({ 留言者, 内容 });
   }
-  return { id: crypto.randomUUID(), 猎物ID, 文案: f['文案'] || '', 媒体类型: 'image', 媒体描述: f['媒体描述'] || '', 标签: f['标签'] || '', 评论区: comments,
-    imageTags: f['配图'] || '', photoId: '', imageState: '', imageNote: '', imageVersions: [], at: at || Date.now() };
+  return {
+    id: crypto.randomUUID(),
+    归属便器ID: 猎物ID, 猎物ID, 涉及便器ID: 猎物ID,
+    发布配种者: String(f['发布配种者'] || '').trim(),
+    配种者等级: Math.min(5, Math.max(0, Number(f['配种者等级']) || 0)),
+    文案: f['文案'] || '', 媒体类型: 'image', 媒体描述: f['媒体描述'] || '', 标签: f['标签'] || '', 评论区: comments,
+    imageTags: f['配图'] || '', photoId: '', imageState: '', imageNote: '', imageVersions: [], at: at || Date.now(),
+  };
 }

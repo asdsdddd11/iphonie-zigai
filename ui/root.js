@@ -165,15 +165,17 @@ export function rootApp(ctx) {
 
   function post(p, state, allowApply) {
     const t = state.猎物库?.[p.猎物ID];
-    const name = t?.基础档案?.姓名 || '未知';
-    const rating = t?.基础档案?.评级 || '原矿';
-    const stage = t?.配种信息?.开发阶段;
+    const isBreeder = !!p.发布配种者;
+    const name = isBreeder ? p.发布配种者 : (t?.基础档案?.姓名 || '未知');
+    const rating = isBreeder ? ('Lv.' + (p.配种者等级 || 1)) : (t?.基础档案?.评级 || '原矿');
+    const stage = isBreeder ? undefined : t?.配种信息?.开发阶段;
     const tags = String(p.标签 || '').split(/\s+/).filter(Boolean);
     return `<div class="rt-post">
       <div class="rt-post-head">
         <button type="button" style="border:none;background:none;padding:0" data-action="root-profile" data-id="${esc(p.猎物ID)}" aria-label="看 ${esc(name)} 的档案">${face(name, 38)}</button>
         <div class="rt-name"><b>${esc(name)}</b><span class="rt-rating">${esc(rating)}</span>${stage !== undefined ? `<span class="rt-stage">${esc(STAGES[stage] || '')}</span>` : ''}</div>
       </div>
+      ${isBreeder && t ? `<p class="rt-note" style="margin:6px 0 0">涉及便器：${esc(t.基础档案?.姓名 || '')}</p>` : ''}
       <p class="rt-text">${esc(p.文案)}</p>
       ${photo(p)}
       ${tags.length ? `<div class="rt-tags">${tags.map(tag => `<button type="button" class="rt-tag" data-action="root-search" data-tag="${esc(tag)}">${esc(tag)}</button>`).join('')}</div>` : ''}

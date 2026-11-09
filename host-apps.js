@@ -241,9 +241,10 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const fresh = [];
       const now = Date.now();
       for (const f of targets) {
-        const name = String(f['作者'] || '').trim();
-        if (!name || name === me) continue;
-        const id = Object.entries(state.猎物库).find(([, t]) => t.基础档案?.姓名 === name)?.[0];
+        const 便器名 = String(f['涉及便器'] || f['作者'] || '').trim();
+        const 发布配种者 = String(f['发布配种者'] || '').trim();
+        if (!便器名 || !发布配种者 || 发布配种者 === me) continue;
+        const id = Object.entries(state.猎物库).find(([, t]) => t.基础档案?.姓名 === 便器名)?.[0];
         if (id) fresh.push(huntToFeed(f, id, now));
       }
       const 广场流 = query ? [...fresh, ...(state.广场流 || [])] : fresh;
