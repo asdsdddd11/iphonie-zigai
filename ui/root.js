@@ -5,6 +5,10 @@ import {esc} from './common.js';
 import {icon} from './icons.js';
 import {previewBlob} from './thumbs.js';
 import {openImageViewer} from '../image-viewer.js';
+import {viewerHeart} from './photo-heart.js';
+import {downloadAction, shareAction} from '../download.js';
+import {editTags} from '../host-ask.js';
+import {pictureInputs, photoTags, photoPicture} from '../core/draw.js';
 
 const TABS = [
   ['hunt', '猎场', [['hunt-feed', '猎场'], ['showcase', '便器广场']]],
@@ -18,17 +22,17 @@ const STAGES = {0: '未调教', 1: '初诊期', 2: '崩坏期', 3: '成瘾期', 
 const STYLE = `
 .rt-root { position: absolute; inset: 0; display: flex; flex-direction: column; background: #0a0a0a; overflow: hidden; color: #e8e8e8; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; padding: 0; box-sizing: border-box; }
 .rt-root * { box-sizing: border-box; }
-.rt-root .rt-top { flex: none; padding: 10px 12px 8px; background: #0a0a0a; border-bottom: 1px solid #2a2a2a; }
-.rt-root .rt-bar { display: flex; gap: 7px; align-items: center; }
-.rt-root .rt-bar input { flex: 1; min-width: 0; padding: 8px 11px; border-radius: 9px; border: 1px solid #2a2a2a; background: #141414; color: #e8e8e8; font-size: 13px; outline: none; }
-.rt-root .rt-bar button { padding: 8px 13px; border-radius: 9px; border: 1px solid #c5a47e; background: #1f1f1f; color: #c5a47e; font-size: 13px; white-space: nowrap; font-family: inherit; }
-.rt-root .rt-bar .rt-sq { width: 36px; padding: 0; height: 36px; display: grid; place-items: center; }
+.rt-root .rt-top { flex: none; padding: calc(38px + env(safe-area-inset-top, 0px)) 12px 8px; background: #0a0a0a; border-bottom: 1px solid #2a2a2a; }
+.rt-root .rt-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.rt-root .rt-bar input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid #2a2a2a; background: #141414; color: #e8e8e8; font-size: 12.5px; outline: none; }
+.rt-root .rt-bar button { height: 30px; padding: 0 11px; border-radius: 8px; border: 1px solid #c5a47e; background: #1f1f1f; color: #c5a47e; font-size: 12.5px; white-space: nowrap; font-family: inherit; }
+.rt-root .rt-bar .rt-sq { width: 30px; padding: 0; display: grid; place-items: center; }
 .rt-root .rt-backbar { display: flex; align-items: center; gap: 10px; }
-.rt-root .rt-back { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #2a2a2a; background: #1f1f1f; color: #c5a47e; }
-.rt-root .rt-backbar b { font-size: 15px; color: #e8e8e8; }
-.rt-root .rt-tabs { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
+.rt-root .rt-back { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #2a2a2a; background: #1f1f1f; color: #c5a47e; }
+.rt-root .rt-backbar b { font-size: 14px; color: #e8e8e8; }
+.rt-root .rt-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
 .rt-root .rt-tabs::-webkit-scrollbar { display: none; }
-.rt-root .rt-tab { flex: none; padding: 5px 12px; border-radius: 999px; border: 1px solid #2a2a2a; background: #141414; color: #a0a0a0; font-size: 12px; white-space: nowrap; font-family: inherit; }
+.rt-root .rt-tab { flex: 1; padding: 5px 0; border-radius: 8px; border: 1px solid #2a2a2a; background: #141414; color: #a0a0a0; font-size: 11.5px; white-space: nowrap; font-family: inherit; text-align: center; }
 .rt-root .rt-tab[data-on] { background: #c5a47e; color: #0a0a0a; border-color: #c5a47e; font-weight: 700; }
 .rt-root .rt-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 12px 16px; scrollbar-width: none; }
 .rt-root .rt-scroll::-webkit-scrollbar { display: none; }
@@ -242,7 +246,8 @@ export function rootApp(ctx) {
     loadPhotos();
   }
 
-  async function viewPhoto(postId) {
+  /** 帖子配图，点开看大图：多版左右滑、看参数、下载、分享、收藏、重画、改提示词、删除，和朋友圈一样。 */
+  async function viewPhoto(postId, img) {
     const state = await api.rootState().catch(() => null) || {};
     const p = [...(state.猎场流 || []), ...(state.广场流 || [])].find(x => x.id === postId);
     if (!p?.photoId) return;
@@ -250,8 +255,49 @@ export function rootApp(ctx) {
     for (const photoId of [...new Set([...(p.imageVersions || []), p.photoId].filter(Boolean))]) {
       try { const photo = await api.getPhoto(photoId); if (photo) versions.push({photoId, photo, src: await urlFor(photoId)}); } catch {}
     }
-    if (!versions.length) return;
-    openImageViewer({doc: ctx.doc, caption: p.文案 || '', gallery: {items: versions.map(x => ({src: x.src, alt: p.文案 || '', info: x.photo.info})), index: Math.max(0, versions.findIndex(x => x.photoId === p.photoId))}});
+    if (v.disposed || !versions.length) return;
+    const cap = p.文案 || '', owner = state.猎物库?.[p.猎物ID]?.基础档案?.姓名 || '';
+    const name = '根源 · ' + (owner || '帖子'), drawn = !!p.imageTags;
+    const current = async () => {
+      const now = await api.rootState().catch(() => null) || {};
+      const post = [...(now.猎场流 || []), ...(now.广场流 || [])].find(x => x.id === postId);
+      if (!post) throw Error('这条帖子已经不在了');
+      return {post, state: now};
+    };
+    const redraw = async tags => {
+      const paid = api.drawQuote?.().free === false, ask = api.paidPrompt?.();
+      if (paid && ask && !await ctx.confirm(ask.title, ask.text)) return false;
+      await api.rootDrawImage(postId, paid, tags);
+      render();
+    };
+    const rewrite = async () => {
+      const {post} = await current();
+      const tags = await editTags({doc: ctx.doc, text: post.imageTags || '', ask: (text, mode, wish) => api.tagText ? api.tagText(text, mode, wish) : Promise.reject(Error('看中文和改要在酒馆里用')),
+        about: '这张配图用的英文 tag。改了以后重画也用它；之前画的几版还在，可以左右滑着比。'});
+      if (!tags?.trim()) return false;
+      return redraw(tags.trim());
+    };
+    const inDraw = async i => {
+      const {post, state: now} = await current();
+      const profile = now.猎物库?.[post.猎物ID]?.基础档案 || {}, looks = String(profile.外貌Tag || '').trim(), s = api.getState();
+      const names = [...s.routes.map(r => r.name), api.userName?.() || '我', profile.姓名].filter(Boolean);
+      const fake = looks ? {...s, routes: [...s.routes, {name: profile.姓名 || '猎物', appearance: looks, engine: 'none', voice: '', model: '', language: ''}]} : s;
+      const tags = photoTags({text: post.文案, tags: post.imageTags, owner: profile.姓名 || '', names});
+      ctx.openDraw({...pictureInputs(fake, photoPicture(fake, {text: post.文案, tags: post.imageTags, owner: profile.姓名 || '', names})), tag: tags, seed: Number(versions[i].photo.info?.find(row => row[0] === '种子')?.[1])});
+    };
+    let viewer;
+    const safe = fn => async i => { viewer?.close(); try { return await fn(i); } catch (error) { ctx.notify(error.message, {error: true}); return false; } };
+    const heart = await viewerHeart(api, i => versions[i].photoId, ctx.notify);
+    if (v.disposed) return;
+    viewer = openImageViewer({doc: ctx.doc, from: img, caption: cap,
+      gallery: {items: versions.map(x => ({src: x.src, alt: cap, info: x.photo.info})), index: Math.max(0, versions.findIndex(x => x.photoId === p.photoId))},
+      actions: [heart, downloadAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify), shareAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify),
+        ...(drawn ? [
+          {label: '重画', run: safe(() => redraw())},
+          {label: '改提示词再画', run: safe(rewrite)},
+          ...(ctx.openDraw ? [{label: '在绘图中打开', run: safe(inDraw)}] : []),
+          {label: '删除这版', danger: true, run: safe(async i => { if (!await ctx.confirm('删除这版配图？', versions.length > 1 ? '这条帖子换成别的一版。' : '这条帖子就没有配图了，之后可以再画。')) return false; await api.deletePhoto(versions[i].photoId); render(); })}
+        ] : [])].filter(Boolean)});
   }
 
   v.on('click', '[data-action]', async el => {
@@ -270,7 +316,7 @@ export function rootApp(ctx) {
     else if (action === 'root-search') { search = el.dataset.tag; render(); }
     else if (action === 'root-clear-search') { search = ''; render(); }
     else if (action === 'root-draw') { await v.busy(el, async () => { await api.rootDrawImage(el.dataset.id); render(); }); }
-    else if (action === 'root-view-photo') viewPhoto(el.dataset.id);
+    else if (action === 'root-view-photo') viewPhoto(el.dataset.id, el.querySelector('img'));
     else if (action === 'root-do-search') {
       const box = v.root.querySelector('[data-field=root-search]');
       const q = (box?.value || '').trim();

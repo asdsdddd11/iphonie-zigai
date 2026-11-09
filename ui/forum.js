@@ -8,6 +8,8 @@ import {previewBlob} from './thumbs.js';
 import {openImageViewer} from '../image-viewer.js';
 import {viewerHeart} from './photo-heart.js';
 import {downloadAction, shareAction} from '../download.js';
+import {editTags} from '../host-ask.js';
+import {pictureInputs, photoTags, photoPicture} from '../core/draw.js';
 
 function ago(at) {
   const s = (Date.now() - at) / 1000;
@@ -62,7 +64,7 @@ export function forumApp(ctx) {
     if (p.imageState === 'failed') return `<button type="button" class="moment-note" data-action="forum-draw" data-id="${esc(p.id)}">${esc(p.imageNote || '配图没画出来')} · 点一下重画</button>`;
     return `<button type="button" class="moment-note" data-action="forum-draw" data-id="${esc(p.id)}">这条帖子有配图 · 点一下画出来</button>`;
   }
-  /** 帖子配图，点开看大图：多版左右滑、看参数、下载、分享、收藏，和朋友圈一样。 */
+  /** 帖子配图，点开看大图：多版左右滑、看参数、下载、分享、收藏、重画、改提示词、删除，和朋友圈一样。 */
   async function viewPhoto(p, img) {
     const versions = [];
     for (const photoId of [...new Set([...(p.imageVersions || []), p.photoId].filter(Boolean))]) {
@@ -72,12 +74,39 @@ export function forumApp(ctx) {
       } catch {}
     }
     if (v.disposed || !versions.length) return;
+    const name = '论坛 · ' + (nameOf(p.author) || ''), drawn = !!p.imageTags && p.author !== 'me';
+    const current = async () => { const now = await api.getForumPost?.(p.id); if (!now) throw Error('这条帖子已经不在了'); return now; };
+    const redraw = async tags => {
+      const paid = api.drawQuote?.().free === false, ask = api.paidPrompt?.();
+      if (paid && ask && !await ctx.confirm(ask.title, ask.text)) return false;
+      background(api.forumDrawImage(p.id, paid, tags));
+    };
+    const rewrite = async () => {
+      const now = await current();
+      const tags = await editTags({doc: ctx.doc, text: now.imageTags || '', ask: (text, mode, wish) => api.tagText ? api.tagText(text, mode, wish) : Promise.reject(Error('看中文和改要在酒馆里用')),
+        about: '这张配图用的英文 tag。改了以后重画也用它；之前画的几版还在，可以左右滑着比。'});
+      if (!tags?.trim()) return false;
+      return redraw(tags.trim());
+    };
+    const inDraw = async i => {
+      const now = await current(), names = [...api.getState().routes.map(r => r.name), api.userName?.() || '我'];
+      const tags = photoTags({text: now.text, tags: now.imageTags, owner: now.author, names});
+      ctx.openDraw({...pictureInputs(api.getState(), photoPicture(api.getState(), {text: now.text, tags: now.imageTags, owner: now.author, names})), tag: tags, seed: Number(versions[i].photo.info?.find(row => row[0] === '种子')?.[1])});
+    };
+    let viewer;
+    const safe = fn => async i => { viewer?.close(); try { return await fn(i); } catch (error) { ctx.notify(error.message, {error: true}); return false; } };
     const heart = await viewerHeart(api, i => versions[i].photoId, ctx.notify);
     if (v.disposed) return;
-    openImageViewer({doc: ctx.doc, from: img, caption: p.text || '',
+    viewer = openImageViewer({doc: ctx.doc, from: img, caption: p.text || '',
       gallery: {items: versions.map(x => ({src: x.src, alt: p.text || '', info: x.photo.info})), index: Math.max(0, versions.findIndex(x => x.photoId === p.photoId)),
         onIndex: i => { const fn = api.forumPickImage; if (fn) fn(p.id, versions[i].photoId).then(() => render(), () => {}); }},
-      actions: [heart, downloadAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify), shareAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify)].filter(Boolean)});
+      actions: [heart, downloadAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify), shareAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify),
+        ...(drawn ? [
+          {label: '重画', run: safe(() => redraw())},
+          {label: '改提示词再画', run: safe(rewrite)},
+          ...(ctx.openDraw ? [{label: '在绘图中打开', run: safe(inDraw)}] : []),
+          {label: '删除这版', danger: true, run: safe(async i => { if (!await ctx.confirm('删除这版配图？', versions.length > 1 ? '这条帖子换成别的一版。' : '这条帖子就没有配图了，之后可以再画。')) return false; await api.deletePhoto(versions[i].photoId); await render(); })}
+        ] : [])].filter(Boolean)});
   }
 
   function thumb(p) {
