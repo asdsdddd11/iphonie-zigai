@@ -120,38 +120,68 @@ export function normalizeRootState(value) {
 export const HUNT_PROMPT = `${HUNT_LORE}
 
 ## 输出格式
-严格按照下面格式输出，一次 6 个：
+严格按下面的排版输出，缩进一律用两个空格，不许用 Tab，不许加别的标题。一次输出 6 个便器档案和 6 条猎场帖子。
 
-【猎物】
-姓名：xx
-评级：xx
-疾病：xx
-年龄：xx
-外貌：xx（只写 2-4 个短词，逗号分隔，例如「单眼皮带压迫感，发亮古铜色皮肤，眉骨高耸眼窝深邃，鼻梁高挺且直」；不写句子）
-外貌tag：xx（英文 danbooru tag，固定外貌：1boy、发型发色、瞳色、体型、显眼特征；不写衣服、表情、动作；必须英文）
-职业：xx
-籍贯：xx
-性格：xx（2-3 个短词，逗号分隔）
-体型：xx（短词，例如「爆发力强田径体型」）
-身高：xxcm
-体重：xxkg
-尺寸描述：xx（严格斜杠：正常长度/勃起长度，例如 18cm/无法测量；阳痿的勃起长度写「无法测量」）
-配种次数：xx（0 到 15；一批 6 个里至少 3 个是 0，剩下必须大于 0）
-开发阶段：xx（0 到 5，由配种次数决定）
-当前配种者：xx（没被收写「无」，否则写配种者网名）
-经手配种者：xx（配种次数 0 写「无」；大于 0 写名字，多个用 ／ 分隔）
-玩法历史：xx（配种次数 0 写「无」；大于 0 写玩法与次数，多个用 ／ 分隔）
-过往评价：xx（条数等于配种次数，最多 5 条，每条 20-40 字；0 次写「无」）
-主页动态1：文案｜媒体描述｜标签（三条都要写，内部用｜分隔，标签带 #）
-主页动态2：文案｜媒体描述｜标签
-主页动态3：文案｜媒体描述｜标签
-文案：xx（帖子正文，30 字以上，口语直白，符合这个人；要有硬货，不能全是求医焦虑）
-媒体描述：xx（照片拍到的画面，两三句，外貌和身材写细）
-标签：xx（至少 5 个，每个带 #）
-配图：xx（英文 danbooru tag，贴合外貌体型职业穿着；必须英文）
-评论1：留言者：内容
-评论2：留言者：内容
-评论3：留言者：内容`;
+便器数据库:
+  T1:
+    基础档案:
+      姓名: xx
+      评级: xx
+      疾病: xx
+      年龄: xx
+      外貌: 2-4 个短词，逗号分隔
+      外貌tag: 英文 danbooru tag，1boy、发型发色、瞳色、体型、显眼特征
+      职业: xx
+      籍贯: xx
+      性格: 2-3 个短词，逗号分隔
+      体型: 短词
+      身高: xxcm
+      体重: xxkg
+      尺寸描述: 正常长度/勃起长度，阳痿的勃起长度写「无法测量」
+    配种信息:
+      开发阶段: 0 到 5，由配种次数决定
+      配种次数: 0 到 15，一批里至少 3 个是 0，剩下必须大于 0
+      当前配种者: 没被收写「无」，否则写配种者网名
+      经手配种者: 0 次写「无」，否则写名字，多个用 ／ 分隔
+      玩法历史: 0 次写「无」，否则写玩法与次数，多个用 ／ 分隔
+      过往评价: 条数等于配种次数，最多 5 条，每条 20-40 字，多个用 ／ 分隔；0 次写「无」
+    主页动态:
+      Post_1:
+        文案: 以前的动态，口语
+        媒体类型: image
+        媒体描述: 画面两三句
+        标签: "#xx #xx #xx #xx #xx"
+      Post_2:
+        文案: 以前的动态
+        媒体类型: image
+        媒体描述: 画面两三句
+        标签: "#xx #xx #xx #xx #xx"
+      Post_3:
+        文案: 以前的动态
+        媒体类型: image
+        媒体描述: 画面两三句
+        标签: "#xx #xx #xx #xx #xx"
+
+猎场信息流:
+  Hunt_1:
+    归属便器ID: T1
+    文案: 帖子正文，30 字以上，口语直白，要有硬货不能全是求医焦虑
+    媒体类型: image
+    媒体描述: 照片拍到的画面，两三句，外貌和身材写细
+    标签: "#xx #xx #xx #xx #xx"
+    配图: 英文 danbooru tag，贴合外貌体型职业穿着
+    评论区:
+      C1:
+        留言者: 配种者网名
+        内容: 猎手口吻，点评身体或直接约
+      C2:
+        留言者: 配种者网名
+        内容: 猎手口吻
+      C3:
+        留言者: 配种者网名
+        内容: 猎手口吻
+
+T1 到 T6、Hunt_1 到 Hunt_6 依次对应，归属便器ID 必须对上。`;
 
 // ---------- 便器广场生成 ----------
 export const SHOW_PROMPT = `${SHOW_LORE}
@@ -188,6 +218,114 @@ function parseBlocks(reply, tag) {
 
 export function parseHunt(reply) {
   return parseBlocks(reply, '猎物').filter(f => f['姓名']);
+}
+
+/** YAML 便器块 → 档案。 */
+export function huntToTargetYaml(t) {
+  const p = t.档案 || {}, b = t.配种 || {};
+  const count = Math.max(0, Number(b['配种次数']) || 0);
+  const split = (v, max) => String(v || '').split('／').map(s => s.trim()).filter(s => s && s !== '无' && s !== '{}').slice(0, max);
+  const 过往评价 = {};
+  split(b['过往评价'], 5).forEach((v, i) => { 过往评价['R_' + (i + 1)] = v; });
+  const 经手配种者 = {};
+  split(b['经手配种者'], 20).forEach((v, i) => { 经手配种者['H_' + (i + 1)] = v; });
+  const 玩法历史 = {};
+  split(b['玩法历史'], 20).forEach((v, i) => { 玩法历史['P_' + (i + 1)] = v; });
+  const 主页动态 = {};
+  (t.动态 || []).slice(0, 3).forEach((d, i) => {
+    if (d.文案) 主页动态['Post_' + (i + 1)] = { 文案: d.文案, 媒体类型: d.媒体类型 === 'video' ? 'video' : 'image', 媒体描述: d.媒体描述 || '', 标签: d.标签 || '' };
+  });
+  return {
+    基础档案: {
+      姓名: p['姓名'] || '', 评级: p['评级'] || '原矿', 疾病: p['疾病'] || '', 年龄: Number(p['年龄']) || 20,
+      外貌: p['外貌'] || '', 外貌Tag: p['外貌tag'] || '',
+      职业: p['职业'] || '', 籍贯: p['籍贯'] || '', 性格: p['性格'] || '', 体型: p['体型'] || '',
+      身高: p['身高'] || '', 体重: p['体重'] || '', 尺寸描述: p['尺寸描述'] || '',
+      身材水平: '', 颜值水平: '', 身份反差感: '', 潜在开发价值: '', 口音: '', 隐藏习惯: '',
+    },
+    配种信息: {
+      开发阶段: count > 0 ? stageOf(count) : Math.min(5, Math.max(0, Math.round(Number(b['开发阶段']) || 0))),
+      配种次数: count,
+      当前配种者: String(b['当前配种者'] || '无').trim() || '无',
+      经手配种者, 玩法历史, 过往评价,
+    },
+    主页动态,
+  };
+}
+
+/** YAML 猎场帖子块 → 帖子。 */
+export function huntToFeedYaml(h, 猎物ID, at) {
+  const p = h.帖子 || {};
+  return {
+    id: crypto.randomUUID(),
+    归属便器ID: 猎物ID, 猎物ID, 涉及便器ID: 猎物ID,
+    发布配种者: String(p['发布配种者'] || '').trim(),
+    配种者等级: Math.min(5, Math.max(0, Number(p['配种者等级']) || 0)),
+    文案: p['文案'] || '', 媒体类型: p['媒体类型'] === 'video' ? 'video' : 'image',
+    媒体描述: p['媒体描述'] || '', 标签: p['标签'] || '',
+    评论区: (h.评论区 || []).filter(c => c.内容).map(c => ({ 留言者: c.留言者 || '', 内容: c.内容 })),
+    imageTags: p['配图'] || '', photoId: '', imageState: '', imageNote: '', imageVersions: [], at: at || Date.now(),
+  };
+}
+
+/** 解析 [12] 那种 YAML 风格输出：便器数据库 + 猎场信息流。 */
+export function parseHuntYaml(reply) {
+  const text = String(reply || '')
+    .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')
+    .replace(/```[a-z]*\n?|```/g, '');
+  const lines = text.split(/\r?\n/);
+  const targets = [], hunts = [];
+  let cur = null, section = '', post = null, comment = null;
+  const strip = s => String(s || '').trim().replace(/^["'"']|["'"']$/g, '');
+  for (const raw of lines) {
+    if (!raw.trim()) continue;
+    const indent = raw.match(/^ */)[0].length;
+    const m = raw.match(/^\s*([^:：]+)[：:]\s*(.*)$/);
+    if (!m) continue;
+    const key = strip(m[1]);
+    const val = strip(m[2]);
+
+    if (/^T\d+$/.test(key) && indent <= 2) {
+      cur = {kind: 'target', id: key, 档案: {}, 配种: {}, 动态: []};
+      targets.push(cur); section = ''; post = null; comment = null; continue;
+    }
+    if (/^Hunt_\d+$/.test(key) && indent <= 2) {
+      cur = {kind: 'hunt', id: key, 帖子: {}, 评论区: []};
+      hunts.push(cur); section = ''; post = null; comment = null; continue;
+    }
+    if (!cur) continue;
+
+    if (['基础档案', '配种信息', '主页动态', '评论区'].includes(key) && indent <= 4) {
+      section = key; post = null; comment = null; continue;
+    }
+
+    if (cur.kind === 'target') {
+      if (section === '基础档案') { cur.档案[key] = val; continue; }
+      if (section === '配种信息') { cur.配种[key] = val; continue; }
+      if (section === '主页动态') {
+        if (/^Post_\d+$/.test(key)) { post = {文案: '', 媒体类型: 'image', 媒体描述: '', 标签: ''}; cur.动态.push(post); continue; }
+        if (post) {
+          if (key === '文案') post.文案 = val;
+          else if (key === '媒体类型') post.媒体类型 = val;
+          else if (key === '媒体描述') post.媒体描述 = val;
+          else if (key === '标签') post.标签 = val;
+        }
+        continue;
+      }
+    } else {
+      if (section === '评论区') {
+        if (/^C\d+$/.test(key)) { comment = {留言者: '', 内容: ''}; cur.评论区.push(comment); continue; }
+        if (comment) {
+          if (key === '留言者') comment.留言者 = val;
+          else if (key === '内容') comment.内容 = val;
+        }
+        continue;
+      }
+      cur.帖子[key] = val;
+      continue;
+    }
+  }
+  return {targets, hunts};
 }
 
 /** 广场帖子里「档案」那一行（姓名｜评级｜疾病…）按顺序填回字段，用于新造有主便器。 */

@@ -7,7 +7,7 @@ import {storyLines, pickCrowd, activityNames} from './core/moments.js';
 import {inSpace, activeChatPreset, cleanTagged} from './core/chat.js';
 import {worldInfoFor, loreOptions} from './host-lore.js';
 import {pictureInputs, sizeFor, photoPicture} from './core/draw.js';
-import {HUNT_PROMPT, SHOW_PROMPT, parseHunt, parseShow, huntToTarget, huntToFeed, stageOf} from './core/root.js';
+import {HUNT_PROMPT, SHOW_PROMPT, parseHunt, parseShow, parseHuntYaml, huntToTarget, huntToTargetYaml, huntToFeed, huntToFeedYaml, stageOf} from './core/root.js';
 
 const PEOPLE = 12;
 
@@ -199,22 +199,31 @@ export function createAppsHost({context, settings, backend, memory = null}) {
         {role: 'user', content: askText},
       ];
       const reply = await ask(ctx, prompt, preset, 'root');
-      const hunt = parseHunt(reply);
-      if (!hunt.length) throw Error('这次没有刷出新帖子，可以再试一次');
-      const targets = query ? hunt.slice(0, 1) : hunt;
+      const {targets: tList, hunts: hList} = parseHuntYaml(reply);
+      if (!tList.length) throw Error('这次没有刷出新帖子，可以再试一次');
+      const useTargets = query ? tList.slice(0, 1) : tList;
+      const useIds = new Set(useTargets.map(t => t.id));
       const 猎物库 = { ...state.猎物库 };
       const fresh = [];
       const now = Date.now();
-      for (const f of targets) {
-        const name = String(f['姓名'] || '').trim();
+      const idMap = {};
+      for (const t of useTargets) {
+        const name = String(t.档案['姓名'] || '').trim();
         if (!name || existing.includes(name)) continue;
         const id = crypto.randomUUID();
-        const target = huntToTarget(f);
+        idMap[t.id] = id;
+        const target = huntToTargetYaml(t);
         const ri = RATINGS.indexOf(target.基础档案.评级);
         if (ri > level - 1) target.基础档案.评级 = cap;
         猎物库[id] = target;
-        fresh.push(huntToFeed(f, id, now));
       }
+      for (const h of hList) {
+        const ref = String(h.帖子['归属便器ID'] || '').trim().replace(/^T(\d+)$/, (_, n) => 'T' + n);
+        const tid = idMap[ref || useTargets[0]?.id];
+        if (!tid) continue;
+        fresh.push(huntToFeedYaml(h, tid, now));
+      }
+      if (!fresh.length) throw Error('帖子没有对上档案，可以再试一次');
       const 猎场流 = query ? [...fresh, ...(state.猎场流 || [])] : fresh;
       await backend.saveRoot({ 猎物库, 猎场流 });
       rootDrawNew(fresh);
