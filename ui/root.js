@@ -13,6 +13,45 @@ const TABS = [
 const LEVELS = {1: '体验者', 2: '播种机', 3: '调教师', 4: '处刑官', 4.5: '准牧场主', 5: '牧场主'};
 const STAGES = {0: '未调教', 1: '初诊期', 2: '崩坏期', 3: '成瘾期', 4: '改写期', 5: '重塑期'};
 
+// 暗黑 + 鎏金（对齐 mvu 前端的配色）：只作用在根源 App 里，不影响其他 App。
+const STYLE = `
+.root-app { background: #0a0a0a; min-height: 100%; padding: 0 12px 20px; color: #e8e8e8; }
+.root-app .page-heading h1 { color: #e8e8e8; }
+.root-app .page-heading .eyebrow { color: #c5a47e; letter-spacing: .18em; }
+.root-app .group-title span { color: #c5a47e; letter-spacing: .08em; }
+.root-app .hint { color: #a0a0a0; }
+.root-app .segmented { background: transparent; gap: 6px; }
+.root-app .segmented button { background: #1f1f1f; color: #a0a0a0; border: 1px solid #2a2a2a; border-radius: 8px; }
+.root-app .segmented button[aria-pressed="true"] { background: #c5a47e; color: #0a0a0a; border-color: #c5a47e; font-weight: 600; }
+.root-app .group { background: transparent; }
+.root-app .list-row { background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; margin: 6px 0; color: #e8e8e8; }
+.root-app .list-row strong { color: #e8e8e8; }
+.root-app .list-row small { color: #a0a0a0; }
+.root-app .plate { color: #c5a47e; border: 1px solid #c5a47e; border-radius: 4px; padding: 1px 5px; font-size: 11px; }
+.root-app .chip-button { background: #1f1f1f; color: #c5a47e; border: 1px solid #2a2a2a; border-radius: 999px; }
+.root-post { background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+.root-post-head { display: flex; align-items: center; gap: 10px; }
+.root-avatar { border: 2px solid #c5a47e; border-radius: 50%; padding: 0; background: #0a0a0a; overflow: hidden; }
+.root-post-name { display: flex; align-items: center; gap: 6px; }
+.root-post-name b { color: #e8e8e8; }
+.root-post-text { color: #e8e8e8; margin: 10px 0; line-height: 1.7; }
+.root-post-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.root-post-comments { background: #1f1f1f; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+.root-post-comments p { color: #a0a0a0; margin: 3px 0; font-size: 13px; }
+.root-post-comments b { color: #c5a47e; }
+.root-post-actions { display: flex; gap: 8px; margin-top: 10px; }
+.root-photo img { border: 1px solid #2a2a2a; }
+.root-app .empty h2 { color: #e8e8e8; }
+.root-app .empty p { color: #a0a0a0; }
+`;
+function ensureStyle(doc) {
+  if (!doc || doc.getElementById('root-app-style')) return;
+  const style = doc.createElement('style');
+  style.id = 'root-app-style';
+  style.textContent = STYLE;
+  doc.head.appendChild(style);
+}
+
 export function rootApp(ctx) {
   const {api} = ctx, v = createView(ctx, 'root');
   let tab = 'hunt', sub = 'hunt-feed', search = '', profileId = '';
@@ -139,8 +178,9 @@ export function rootApp(ctx) {
   }
 
   async function render() {
+    ensureStyle(ctx.doc);
     const state = await api.rootState().catch(() => null) || {};
-    v.draw(heading('根源重塑', '', 'Root Rebirth') + subTabs() + renderPage(state) + bottomTabs());
+    v.draw(`<div class="root-app">${heading('根源重塑', '', 'Root Rebirth') + subTabs() + renderPage(state) + bottomTabs()}</div>`);
     loadPhotos();
   }
 
