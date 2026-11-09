@@ -214,6 +214,10 @@ export function rootApp(ctx) {
         <span class="k">肉体维度</span><span class="v">${esc(p.体型 || '?')}</span>
         <span class="k">精神刻写</span><span class="v">${esc(p.性格 || '?')}</span>
         <span class="k">外貌</span><span class="v">${esc(p.外貌 || '?')}</span>
+        <span class="k">身材水平</span><span class="v">${esc(p.身材水平 || '—')}</span>
+        <span class="k">颜值水平</span><span class="v">${esc(p.颜值水平 || '—')}</span>
+        <span class="k">身份反差</span><span class="v">${esc(p.身份反差感 || '—')}</span>
+        <span class="k">开发价值</span><span class="v">${esc(p.潜在开发价值 || '—')}</span>
         <span class="k">口音</span><span class="v">${esc(p.口音 || '—')}</span>
         <span class="k">隐藏习惯</span><span class="v">${esc(p.隐藏习惯 || '—')}</span>
         <span class="k">性器规格</span><span class="v">${esc(p.尺寸描述 || '?')}</span>
