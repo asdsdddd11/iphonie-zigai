@@ -569,9 +569,9 @@ export function settingsApp(ctx) {
       case 'narration': narrationSheet(); break;
       case 'story-phone': storyPhoneSheet(); break;
       case 'story-memory': {
-        const key = api.phoneSpace?.()?.key || '';
+        const key = api.storyBookId?.() || '';
         if (!key) { ctx.notify('先打开一张角色卡', {error: true}); break; }
-        memorySheet(ctx, {threadId: 'story:' + key, title: '正文记忆', tidy: () => api.storyTidy()});
+        memorySheet(ctx, {threadId: key, title: '正文记忆', tidy: () => api.storyTidy()});
         break;
       }
       // A skin brings its own wallpaper, unless a personal photo is the wallpaper.

@@ -391,7 +391,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
     return [kept, recallText(found, {who: name})].filter(Boolean).join('\n\n');
   }
   return {
-    storyMemory, storySources, storyContext, tidyStory,
+    storyMemory, storySources, storyContext, tidyStory, storyBookId,
     tidy, after, contextFor, aboutPeople, storyPlan, storyReady, refreshStory, tidyLife, lifeContext,
     status: threadId => ({...status.get(threadId), busy: busy.has(threadId), ...(storyError ? {storyError} : {})}),
     close() { closed = true; clearTimeout(storyTimer); unsubscribe?.(); }
