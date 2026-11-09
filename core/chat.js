@@ -963,7 +963,7 @@ export function plainStory(textValue, excludeTags = []) {
     .replace(OTHER_PICTURE_BLOCKS, ' ')
     .replace(DATA_BLOCKS, ' ');
   const extra = (excludeTags || []).map(t => String(t).replace(/[^\w-]/g, '')).filter(Boolean);
-  if (extra.length) said = said.replace(new RegExp(`<(${extra.join('|')})\\b[^>]*>[\\s\\S]*?(?:<\\/\\1\\s*>|$)`, 'gi'), ' ');
+  if (extra.length) said = said.replace(new RegExp(`<(${extra.join('|')})[^>]*>[\\s\\S]*?(?:<\\/\\1[^>]*>|$)`, 'gi'), ' ');
   return said
     .replace(/<[^>]+>/g, '')
     .replace(/\s+/g, ' ')
