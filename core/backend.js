@@ -3721,6 +3721,7 @@ export class TTSBackend {
             postForum: async ({ title = '', text = '' } = {}) => (await this.addForumPosts([{ author: 'me', title, text }], { source: 'me' }))[0],
             replyForum: async (id, { text, to } = {}) => { const post = await this.addForumReplies(id, [{ from: 'me', text, to }]); return { post, reply: post.replies.at(-1) }; },
             likeForum: (id, on = true) => this.appsMutate('forum', () => this.apps.change(id, post => { if (post.liked === !!on) return; post.liked = !!on; post.likes = Math.max(0, post.likes + (on ? 1 : -1)); })),
+            forumPickImage: (id, photoId) => this.appsMutate('forum', () => this.apps.change(id, post => { if (!post || ![post.photoId, ...(post.imageVersions || [])].includes(photoId)) throw Error('这张配图已经不在了'); post.photoId = photoId; })),
             deleteForumReply: (id, replyId) => { this.noteGone('forum', [`${id}/${replyId}`]); return this.appsMutate('forum', () => this.apps.change(id, post => { post.replies = post.replies.filter(r => r.id !== replyId); })); },
             deleteForum: id => { this.noteGone('forum', [id]); return this.appsMutate('forum', () => this.apps.remove(id)); },
             clearForum: () => this.appsMutate('forum', () => this.dropping('forum', () => this.partRows('forum'), async () => { const n = await this.clearHere(() => this.apps.list('forum'), id => this.apps.remove(id), () => this.apps.clear('forum')); await this.apps.remove(this.hotId()); return n; })),

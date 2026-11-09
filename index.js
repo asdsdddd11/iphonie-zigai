@@ -475,6 +475,7 @@ function connect(source){
   rootHunt:(q)=>{check();return appsHost.rootHunt(typeof q==='string'?q:'');},
   rootShowcase:(q)=>{check();return appsHost.rootShowcase(typeof q==='string'?q:'');},
   rootDrawImage:(postId,allowPaid,tags)=>{check();return appsHost.rootDrawImage(postId,{allowPaid,tags:typeof tags==='string'?tags:''});},
+  rootPickImage:(postId,photoId)=>{check();return appsHost.rootPickImage(postId,String(photoId||''));},
   rootAddContact:(targetId)=>{check();return appsHost.rootAddContact(targetId);},
   peekLook:(name,keep)=>{check();return appsHost.peekLook(name,{keep:keep===true});},
   memoryTidy:threadId=>{check();return memoryHost.tidy(threadId,{force:true});},

@@ -292,7 +292,8 @@ export function rootApp(ctx) {
     const heart = await viewerHeart(api, i => versions[i].photoId, ctx.notify);
     if (v.disposed) return;
     viewer = openImageViewer({doc: ctx.doc, from: img, caption: cap,
-      gallery: {items: versions.map(x => ({src: x.src, alt: cap, info: x.photo.info})), index: Math.max(0, versions.findIndex(x => x.photoId === p.photoId))},
+      gallery: {items: versions.map(x => ({src: x.src, alt: cap, info: x.photo.info})), index: Math.max(0, versions.findIndex(x => x.photoId === p.photoId)),
+        onIndex: i => { const fn = api.rootPickImage; if (fn) fn(postId, versions[i].photoId).then(() => render(), () => {}); }},
       actions: [heart, downloadAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify), shareAction(ctx.doc, i => ({source: versions[i].photo.blob, name}), ctx.notify),
         ...(drawn ? [
           {label: '重画', run: safe(() => redraw())},

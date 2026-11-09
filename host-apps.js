@@ -254,6 +254,17 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     });
   }
 
+  /** 选一版当主图（滑到哪版，帖子上就显示哪版）。 */
+  async function rootPickImage(postId, photoId) {
+    const state = await backend.rootState();
+    const hunt = [...(state.猎场流 || [])], show = [...(state.广场流 || [])];
+    const post = [...hunt, ...show].find(p => p.id === postId);
+    if (!post) throw Error('找不到这条帖子');
+    if (![post.photoId, ...(post.imageVersions || [])].includes(photoId)) throw Error('这张配图已经不在了');
+    post.photoId = photoId;
+    await backend.saveRoot({猎场流: hunt, 广场流: show});
+  }
+
   /** 画一条根源帖子的配图（帖子和图都存在 rootState 里）。 */
   async function rootDrawImage(postId, {allowPaid = false, tags = ''} = {}) {
     const state = await backend.rootState();
@@ -329,5 +340,5 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     return { name, added: !exists, stabled: changed };
   }
 
-  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, rootShowcase, rootDrawImage, rootAddContact, busy: app => !!busy[app]};
+  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, rootShowcase, rootDrawImage, rootPickImage, rootAddContact, busy: app => !!busy[app]};
 }
