@@ -9,6 +9,7 @@ import {wallpapers, skins, customWallpaper} from './wallpapers.js';
 import {glyph} from './icons.js';
 import {cleanTheme, deriveTheme, wheelHue, THEME_PRESETS} from '../core/theme-colors.js';
 import {themeEditor} from './theme-editor.js';
+import {memorySheet} from './chat-memory.js';
 
 const MARKS = {ok: '✓', warn: '!', error: '✕', info: '·'};
 // the 大游戏 whose saves a backup can hold, by the game's id
@@ -462,6 +463,7 @@ export function settingsApp(ctx) {
           <button class="list-row" data-action="draw-sheet"><span><strong>正文出图</strong><small>${drawNote(s)}</small></span>${icon('next')}</button>
           ${s.general.voiceEnabled !== false ? `<button class="list-row" data-action="narration"><span><strong>整篇朗读</strong><small>${narrationNote(s)}</small></span>${icon('next')}</button>` : ''}
           <button class="list-row" data-action="story-phone"><span><strong>正文联动手机</strong><small>${s.chat.proactive?.on ? '开 · 正文里的消息、照片、转账、来电会真的出现在手机上' + (s.chat.proactive.clock ? '，也按现实时间来找你' : '') : s.chat.proactive?.clock ? '只按现实时间来找你' : '关'}</small></span>${icon('next')}</button>
+          <button class="list-row" data-action="story-memory"><span><strong>正文记忆</strong><small>正文整理成的分层摘要，更早剧情不丢；可查看、整理、修改（整张卡共用一本）</small></span>${icon('next')}</button>
           ${toggle('voiceIsland', '台词小窗', s.general.voiceIsland === true, '在酒馆页面上浮一个小窗，列出最新一条回复里的台词，点哪句念哪句（再点暂停），「整条」从头念到尾。正文里的声波点不到时（比如手机上在看视觉小说，立绘盖住了正文）、或者想按自己的节奏一句句听时打开。可以拖到不挡视线的地方；✕ 收起到下一条回复。')}
         </div>
         <details data-group="voice-more"><summary>更多<small class="fold-note">按钮、声波、音量</small></summary><div class="fold-body">
@@ -566,6 +568,12 @@ export function settingsApp(ctx) {
       case 'draw-sheet': drawSheet(); break;
       case 'narration': narrationSheet(); break;
       case 'story-phone': storyPhoneSheet(); break;
+      case 'story-memory': {
+        const key = api.phoneSpace?.()?.key || '';
+        if (!key) { ctx.notify('先打开一张角色卡', {error: true}); break; }
+        memorySheet(ctx, {threadId: 'story:' + key, title: '正文记忆', tidy: () => api.storyTidy()});
+        break;
+      }
       // A skin brings its own wallpaper, unless a personal photo is the wallpaper.
       case 'skin': {
         const p = await api.getPhone(), key = el.dataset.value, first = key === 'custom' && !p.customTheme, again = key === 'custom' && p.skin === 'custom';

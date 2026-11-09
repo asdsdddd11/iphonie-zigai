@@ -221,7 +221,8 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
   const unsubscribe = backend.subscribe?.(event => { if (event.type === 'chat' && !event.typing || event.type === 'memory' && event.reset) refreshStory(); });
 
   // ---------- 正文记忆：小手机自己把正文做成分层摘要，更早的剧情不丢（不依赖记忆插件） ----------
-  const storyBookId = () => 'story:' + cardKey();
+  // 正文记忆：整张卡一本（空间 key），所有角色共享，不按角色分。
+  const storyBookId = () => 'story:' + (backend.spaceKey?.() || cardKey());
   /** 正文里能读的消息（跳过系统消息），清理掉数据块，每条 {name, text}。 */
   function storyEntries() {
     const user = userName();
