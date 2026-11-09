@@ -1,7 +1,7 @@
 // 根源重塑 App 的状态库（线上独立于正文，存本地 apps store）。
 // 猎场 / 便器广场是「帖子流」，和朋友圈、论坛一样：刷新追加新帖，旧帖保留。
 // 规范与设定来自内置世界书 core/root-lore.js，不再读小手机外部世界书。
-import {ROOT_LORE} from './root-lore.js';
+import {HUNT_LORE, SHOW_LORE} from './root-lore.js';
 
 export const ROOT_LIMITS = Object.freeze({targets: 80, feeds: 200, messages: 200, comments: 4, trophies: 100, text: 2000, line: 60, tags: 200});
 
@@ -103,11 +103,17 @@ export function normalizeRootState(value) {
 }
 
 // ---------- 猎场生成 ----------
-export const HUNT_PROMPT = `${ROOT_LORE}
+export const HUNT_PROMPT = `${HUNT_LORE}
 
-## 本次任务：猎场信息流（HuntFeed）
-按上面的内置设定和规则，生成猎场信息流的新帖子。
+## App 适配（覆盖上面的通用规则）
+- 媒体类型只能是 image，禁止 video（视频无法生图）。
+- 标签至少 5 个。
+- 评论区 2-3 条，留言者是其他便器或配种者，名字必须是真名或网名，绝对不能写「网友」「路人」「匿名」。
+- 若疾病为阳痿，勃起长度必须写「无法测量」。
+- 过往评价条数等于配种次数（最多 5 条），每条 20 到 40 字，配种次数 0 就留空。
+- 过往动态至少 3 条。
 
+## 输出格式
 严格按照下面格式输出，一次 6 个：
 
 【猎物】
@@ -138,11 +144,17 @@ export const HUNT_PROMPT = `${ROOT_LORE}
 评论3：留言者名：内容`;
 
 // ---------- 便器广场生成 ----------
-export const SHOW_PROMPT = `${ROOT_LORE}
+export const SHOW_PROMPT = `${SHOW_LORE}
 
-## 本次任务：便器广场（ShowcaseFeed）
-按上面的内置设定和规则，生成便器广场的新帖子。
+## App 适配（覆盖上面的通用规则）
+- 发帖的是配种者，用网名或代号（像「屠夫李」「暗夜主宰」「黑桃K」「毒蛇」），绝对不是中文真名，也不能是用户本人。
+- 媒体类型只能是 image，禁止 video（视频无法生图）。
+- 标签至少 5 个。
+- 评论区 2-3 条，留言者只能是其他配种者（网名），禁止用户自己。
+- 配文必须出现涉及便器的真名。
+- 禁止生成用户自己的动态和评论。
 
+## 输出格式
 严格按照下面格式输出，一次 6 个：
 
 【广场】
