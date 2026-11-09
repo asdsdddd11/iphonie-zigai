@@ -3081,16 +3081,17 @@ export class TTSBackend {
     async savePeek(snapshot, space = this.spaceKey()) { const doc = cleanPeek({ ...snapshot, space }, Date.now()); return (await this.appsMutate('peek', () => this.apps.put([doc])))[0]; }
 
     // ---------- 根源重塑 ----------
-    /** 根源重塑 App 的线上状态库（单文档，kind='root'）。 */
+    /** 根源重塑 App 的线上状态库：跟小手机其他 App 一样按角色卡（space）隔离。 */
+    rootDocId() { return 'root:state' + (this.spaceKey() ? ':' + this.spaceKey() : ''); }
     async rootState() {
-        const doc = await this.apps.get('root:state');
+        const doc = await this.apps.get(this.rootDocId());
         return doc?.state ? normalizeRootState(doc.state) : defaultRootState();
     }
     /** 合并保存线上状态（patch 合并进现有状态）。 */
     async saveRoot(patch) {
         const current = await this.rootState();
         const merged = normalizeRootState({ ...current, ...patch });
-        await this.appsMutate('root', () => this.apps.put([{ id: 'root:state', kind: 'root', at: Date.now(), state: merged }]));
+        await this.appsMutate('root', () => this.apps.put([{ id: this.rootDocId(), kind: 'root', space: this.spaceKey() || '', at: Date.now(), state: merged }]));
         this.emit('root', {});
         return merged;
     }
