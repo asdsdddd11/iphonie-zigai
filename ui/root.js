@@ -23,17 +23,17 @@ const STYLE = `
 .rt-root { position: absolute; inset: 0; display: flex; flex-direction: column; background: #0a0a0a; overflow: hidden; color: #e8e8e8; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; padding: 0; box-sizing: border-box; }
 .rt-root * { box-sizing: border-box; }
 .rt-root .rt-top { flex: none; padding: calc(38px + env(safe-area-inset-top, 0px)) 12px 8px; background: #0a0a0a; border-bottom: 1px solid #2a2a2a; }
-.rt-root .rt-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.rt-root .rt-bar { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
 .rt-root .rt-bar input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid #2a2a2a; background: #141414; color: #e8e8e8; font-size: 12.5px; outline: none; }
 .rt-root .rt-bar button { height: 30px; padding: 0 11px; border-radius: 8px; border: 1px solid #c5a47e; background: #1f1f1f; color: #c5a47e; font-size: 12.5px; white-space: nowrap; font-family: inherit; }
 .rt-root .rt-bar .rt-sq { width: 30px; padding: 0; display: grid; place-items: center; }
 .rt-root .rt-backbar { display: flex; align-items: center; gap: 10px; }
 .rt-root .rt-back { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #2a2a2a; background: #1f1f1f; color: #c5a47e; }
 .rt-root .rt-backbar b { font-size: 14px; color: #e8e8e8; }
-.rt-root .rt-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
-.rt-root .rt-tabs::-webkit-scrollbar { display: none; }
-.rt-root .rt-tab { flex: 1; padding: 5px 0; border-radius: 8px; border: 1px solid #2a2a2a; background: #141414; color: #a0a0a0; font-size: 11.5px; white-space: nowrap; font-family: inherit; text-align: center; }
-.rt-root .rt-tab[data-on] { background: #c5a47e; color: #0a0a0a; border-color: #c5a47e; font-weight: 700; }
+.rt-root .rt-tabs { display: flex; gap: 6px; border-bottom: 1px solid #2a2a2a; }
+.rt-root .rt-tab { flex: 1; padding: 7px 0; border: none; background: none; color: #666; font-size: 12.5px; white-space: nowrap; font-family: inherit; text-align: center; position: relative; }
+.rt-root .rt-tab[data-on] { color: #c5a47e; font-weight: 700; }
+.rt-root .rt-tab[data-on]::after { content: ''; position: absolute; left: 22%; right: 22%; bottom: -1px; height: 2px; border-radius: 1px; background: #c5a47e; }
 .rt-root .rt-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 12px 16px; scrollbar-width: none; }
 .rt-root .rt-scroll::-webkit-scrollbar { display: none; }
 .rt-root .rt-dock { flex: none; display: flex; border-top: 1px solid #2a2a2a; background: #0a0a0a; padding: 9px 0 calc(22px + env(safe-area-inset-bottom, 0px)); }
@@ -145,7 +145,7 @@ export function rootApp(ctx) {
       ? `<div class="rt-bar"><input type="search" data-field="root-search" aria-label="搜索" placeholder="搜名字或标签，AI 生成"><button type="button" data-action="root-do-search">搜索</button><button type="button" class="rt-sq" data-action="root-refresh" aria-label="刷新">${icon('refresh')}</button></div>`
       : '';
     const tabs = `<div class="rt-tabs">${tabDef()[2].map(([id, name]) => `<button type="button" class="rt-tab" data-action="root-sub" data-sub="${id}"${sub === id ? ' data-on' : ''}>${name}</button>`).join('')}</div>`;
-    return `<div class="rt-top">${bar}${tabs}</div>`;
+    return `<div class="rt-top">${tabs}${bar}</div>`;
   }
 
   function dock() {
