@@ -222,7 +222,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
 
   // ---------- 正文记忆：小手机自己把正文做成分层摘要，更早的剧情不丢（不依赖记忆插件） ----------
   // 正文记忆：整张卡一本（空间 key），所有角色共享，不按角色分。
-  const storyBookId = () => 'story:' + (backend.spaceKey?.() || cardKey());
+  const storyBookId = () => 'story:' + (backend.cardKey?.() || '');
   /** 正文里能读的消息（跳过系统消息），清理掉数据块，每条 {name, text}。 */
   function storyEntries() {
     const user = userName();
@@ -237,7 +237,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
       const o = options();
       if (!o.enabled) return 0;
       const entries = storyEntries();
-      const keep = Math.max(2, activeChatPreset(settings().chat).context || 2), batch = 20;
+      const keep = Math.max(1, Number(activeChatPreset(settings().chat).context) || 1), batch = 20;
       let written = 0;
       // 分批把积压的正文写进摘要：只要超出保留窗口就整理（一条也行），单批最多 20 条。
       for (let step = 0; step < (force ? 8 : 4); step++) {
