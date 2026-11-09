@@ -237,7 +237,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
       const o = options();
       if (!o.enabled) return 0;
       const entries = storyEntries();
-      const keep = Math.max(1, Number(activeChatPreset(settings().chat).context) || 1), batch = 20;
+      const keep = Math.max(1, Number(activeChatPreset(settings().chat).context) || 1), batch = 1;
       let written = 0;
       // 分批把积压的正文写进摘要：只要超出保留窗口就整理（一条也行），单批最多 20 条。
       for (let step = 0; step < (force ? 8 : 4); step++) {
