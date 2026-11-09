@@ -70,6 +70,8 @@ const STYLE = `
 .rt-root .rt-grid .k { color: #666; font-size: 11.5px; }
 .rt-root .rt-grid .v { color: #e8e8e8; font-size: 13px; }
 .rt-root .rt-review { color: #a0a0a0; border-left: 2px solid #c5a47e; padding-left: 10px; margin: 8px 0; font-size: 12.5px; line-height: 1.6; }
+.rt-root .rt-dyn { border-left: 2px solid #3a3226; padding-left: 10px; margin: 12px 0; }
+.rt-root .rt-dyn .rt-text { margin: 0; }
 .rt-root .rt-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 12px; background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; margin: 6px 0; width: 100%; text-align: left; font-family: inherit; }
 .rt-root .rt-row strong { color: #e8e8e8; font-size: 14px; display: block; }
 .rt-root .rt-row small { color: #a0a0a0; font-size: 11.5px; display: block; margin-top: 2px; }
@@ -177,6 +179,7 @@ export function rootApp(ctx) {
       </div>
       ${isBreeder && t ? `<p class="rt-note" style="margin:6px 0 0">涉及便器：${esc(t.基础档案?.姓名 || '')}</p>` : ''}
       <p class="rt-text">${esc(p.文案)}</p>
+      ${p.媒体描述 ? `<p class="rt-note" style="margin:6px 0 0">${esc(p.媒体描述)}</p>` : ''}
       ${photo(p)}
       ${tags.length ? `<div class="rt-tags">${tags.map(tag => `<button type="button" class="rt-tag" data-action="root-search" data-tag="${esc(tag)}">${esc(tag)}</button>`).join('')}</div>` : ''}
       ${p.评论区?.length ? `<div class="rt-comments">${p.评论区.map(c => `<p><b>${esc(c.留言者)}</b>：${esc(c.内容)}</p>`).join('')}</div>` : ''}
@@ -202,7 +205,10 @@ export function rootApp(ctx) {
     const t = state.猎物库?.[profileId];
     if (!t) return '<div class="rt-empty"><b>找不到这个人</b></div>';
     const p = t.基础档案, b = t.配种信息;
-    const posts = [...(state.猎场流 || []), ...(state.广场流 || [])].filter(x => x.猎物ID === profileId);
+    const dyn = Object.values(t.主页动态 || {}).filter(d => d && d.文案);
+    const owners = Object.values(b.经手配种者 || {}).filter(Boolean);
+    const plays = Object.values(b.玩法历史 || {}).filter(Boolean);
+    const reviews = Object.values(b.过往评价 || {}).filter(Boolean);
     return `<div class="rt-profile-head">
         <div class="rt-profile-avatar">${face(p.姓名, 68)}</div>
         <h2 class="rt-profile-name">${esc(p.姓名)}</h2>
@@ -214,14 +220,16 @@ export function rootApp(ctx) {
         <span class="k">肉体维度</span><span class="v">${esc(p.体型 || '?')}</span>
         <span class="k">精神刻写</span><span class="v">${esc(p.性格 || '?')}</span>
         <span class="k">外貌</span><span class="v">${esc(p.外貌 || '?')}</span>
-        <span class="k">口音</span><span class="v">${esc(p.口音 || '—')}</span>
-        <span class="k">隐藏习惯</span><span class="v">${esc(p.隐藏习惯 || '—')}</span>
         <span class="k">性器规格</span><span class="v">${esc(p.尺寸描述 || '?')}</span>
         <span class="k">开发记录</span><span class="v" style="color:#c5a47e;font-weight:700">已配种 ${esc(b.配种次数 || 0)} 次 · Lv.${esc(b.开发阶段 || 0)} ${esc(STAGES[b.开发阶段] || '')}</span>
+        ${b.当前配种者 && b.当前配种者 !== '无' ? `<span class="k">当前配种者</span><span class="v">${esc(b.当前配种者)}</span>` : ''}
+        ${owners.length ? `<span class="k">经手配种者</span><span class="v">${esc(owners.join('、'))}</span>` : ''}
+        ${plays.length ? `<span class="k">玩法历史</span><span class="v">${esc(plays.join(' ｜ '))}</span>` : ''}
       </div>
       <button type="button" class="rt-btn2 primary" style="width:100%" data-action="root-chat" data-id="${esc(profileId)}">调出加密通讯</button>
+      ${reviews.length ? `<div class="rt-sec">过往评价</div>${reviews.map(x => `<div class="rt-review">${esc(x)}</div>`).join('')}` : ''}
       <div class="rt-sec">主页动态</div>
-      ${posts.length ? posts.map(x => `<div class="rt-review">${esc(x.文案)}</div>`).join('') : '<p class="rt-note">还没有帖子。</p>'}`;
+      ${dyn.length ? dyn.map(d => `<div class="rt-dyn"><p class="rt-text">${esc(d.文案)}</p>${d.媒体描述 ? `<p class="rt-note">${esc(d.媒体描述)}</p>` : ''}${d.标签 ? `<div class="rt-tags">${String(d.标签).split(/\s+/).map(x => x.trim()).filter(Boolean).map(tag => `<span class="rt-tag">${esc(tag)}</span>`).join('')}</div>` : ''}</div>`).join('') : '<p class="rt-note">还没有动态。</p>'}`;
   }
 
   function body(state) {
