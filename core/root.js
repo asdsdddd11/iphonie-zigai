@@ -139,7 +139,7 @@ function parseBlocks(reply, tag) {
     const f = {};
     for (const line of block.split(/\r?\n/)) {
       const m = line.match(/^([^：:]+)[：:]\s*(.*)$/);
-      if (m) f[m[1].trim()] = m[2].trim();
+      if (m) f[m[1].trim().replace(/[\s_\-]/g, '').toLowerCase()] = m[2].trim();
     }
     out.push(f);
   }
@@ -160,7 +160,7 @@ export function huntToTarget(f) {
       姓名: f['姓名'] || '', 评级: f['评级'] || '原矿', 疾病: f['疾病'] || '', 年龄: Number(f['年龄']) || 20,
       外貌: f['外貌'] || '', 职业: f['职业'] || '', 籍贯: f['籍贯'] || '', 性格: f['性格'] || '',
       体型: f['体型'] || '', 身高: f['身高'] || '', 体重: f['体重'] || '', 尺寸描述: f['尺寸描述'] || '',
-      外貌Tag: f['外貌tag'] || f['外貌Tag'] || '',
+      外貌Tag: f['外貌tag'] || '',
     },
     配种信息: { 开发阶段: 0, 配种次数: 0, 当前配种者: '无', 经手配种者: {}, 玩法历史: {}, 过往评价: {} },
   };

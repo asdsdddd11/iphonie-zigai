@@ -257,7 +257,15 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       const names = [...s.routes.map(r => r.name), userName(), profile.姓名].filter(Boolean);
       // 让 photoPicture 认得出这个人：临时塞一个带固定外貌的角色（不改真实 settings）。
       const fake = looks ? {...s, routes: [...s.routes, {name: profile.姓名 || '猎物', appearance: looks, engine: 'none', voice: '', model: '', language: ''}]} : s;
-      const input = pictureInputs(fake, photoPicture(fake, {text: post.文案, tags: post.imageTags, owner: profile.姓名 || '', names}), '');
+      const pic = photoPicture(fake, {text: post.文案, tags: post.imageTags, owner: profile.姓名 || '', names});
+      const input = pictureInputs(fake, pic, '');
+      // 强制带上固定外貌：即使画面 tag 没写人数、photoCast 认为没人，也把这个人画进去。
+      if (looks && !input.characters?.length) {
+        input.characters = [{prompt: looks, negative: '', position: -1}];
+        input.prompt = [input.prompt, '1boy'].filter(Boolean).join(', ');
+      } else if (looks && input.characters?.length) {
+        input.characters[0] = {...input.characters[0], prompt: [looks, input.characters[0].prompt].filter(Boolean).join(', ')};
+      }
       post.imageState = 'waiting'; post.imageNote = '';
       await save();
       const result = await backend.generateImage({...input, allowPaid, name: `根源-${profile.姓名 || '帖子'}`, key: `root:${postId}`, label: `根源 · ${profile.姓名 || '帖子'}`});
