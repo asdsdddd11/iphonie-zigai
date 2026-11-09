@@ -239,12 +239,12 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
       const entries = storyEntries();
       const keep = Math.max(2, activeChatPreset(settings().chat).context || 2), batch = 20;
       let written = 0;
-      // 分批把积压的正文写进摘要：自动最多 2 批，立即整理最多 4 批（积压多时不用点很多次）。
-      for (let step = 0; step < (force ? 4 : 2); step++) {
+      // 分批把积压的正文写进摘要：只要超出保留窗口就整理（一条也行），单批最多 20 条。
+      for (let step = 0; step < (force ? 8 : 4); step++) {
         const book = await backend.memoryBook(storyBookId());
         const done = Number(book.throughAt) || 0;
         const available = Math.max(0, entries.length - keep);
-        if (available - done < (force ? 4 : batch)) break;
+        if (available <= done) break;
         const slice = entries.slice(done, Math.min(available, done + batch));
         const lines = slice.map(e => `${e.name}：${e.text}`);
         if (!lines.length) break;
