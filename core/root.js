@@ -46,6 +46,8 @@ function normalizeFeed(rows) {
     文案: clip(p.文案, ROOT_LIMITS.text), 媒体类型: p.媒体类型 === 'video' ? 'video' : 'image',
     媒体描述: clip(p.媒体描述, ROOT_LIMITS.text), 标签: clip(p.标签, ROOT_LIMITS.tags),
     评论区: (Array.isArray(p.评论区) ? p.评论区 : []).slice(0, ROOT_LIMITS.comments).map(c => ({ 留言者: clip(c.留言者, 40), 内容: clip(c.内容, 200) })).filter(c => c.内容),
+    imageTags: clip(p.imageTags, 600), photoId: clip(p.photoId, 100), imageState: clip(p.imageState, 20), imageNote: clip(p.imageNote, 200),
+    imageVersions: (Array.isArray(p.imageVersions) ? p.imageVersions : []).map(x => clip(x, 100)).filter(Boolean),
     at: num(p.at, Date.now()),
   })).filter(p => p.文案);
 }
@@ -107,6 +109,7 @@ export const HUNT_PROMPT = `你在为「根源重塑」暗网平台生成猎场�
 文案：xx（30字以上，求医/求助/困惑/炫耀雄性魅力，口语直白，符合直男人设，语气各不同）
 媒体描述：xx（照片或视频拍到的画面，详细）
 标签：#xx #xx #xx #xx #xx
+配图：英文 danbooru tag（描述画面本身：拍到人就写人数、动作、地点和构图；露骨画面可以写 nsfw 等成人 tag；不写发色/瞳色/发型，插件会带上存好的外貌）
 评论1：留言者名：内容
 评论2：留言者名：内容
 
@@ -122,6 +125,7 @@ export const SHOW_PROMPT = `你在为「根源重塑」暗网平台生成便器�
 文案：xx（30字以上，炫耀/分享/求助，含主人赐予、调教、沦陷、身体变化等，口语，符合该便器的人设）
 媒体描述：xx（照片或视频拍到的画面，详细）
 标签：#xx #xx #xx #xx
+配图：英文 danbooru tag（描述画面本身：拍到人就写人数、动作、地点和构图；露骨画面可以写 nsfw 等成人 tag；不写发色/瞳色/发型，插件会带上存好的外貌）
 评论1：留言者名：内容
 评论2：留言者名：内容
 
@@ -166,5 +170,6 @@ export function huntToFeed(f, 猎物ID, at) {
     const [留言者, 内容] = f[k].split(/[：:]/).map(s => (s || '').trim());
     if (留言者 && 内容) comments.push({ 留言者, 内容 });
   }
-  return { id: crypto.randomUUID(), 猎物ID, 文案: f['文案'] || '', 媒体类型: 'image', 媒体描述: f['媒体描述'] || '', 标签: f['标签'] || '', 评论区: comments, at: at || Date.now() };
+  return { id: crypto.randomUUID(), 猎物ID, 文案: f['文案'] || '', 媒体类型: 'image', 媒体描述: f['媒体描述'] || '', 标签: f['标签'] || '', 评论区: comments,
+    imageTags: f['配图'] || '', photoId: '', imageState: '', imageNote: '', imageVersions: [], at: at || Date.now() };
 }

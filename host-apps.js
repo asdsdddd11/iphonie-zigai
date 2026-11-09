@@ -203,6 +203,7 @@ export function createAppsHost({context, settings, backend, memory = null}) {
         猎场流.push(huntToFeed(f, id, now));
       }
       await backend.saveRoot({ 猎物库, 猎场流 });
+      rootDrawNew(猎场流.slice(-hunt.length));
       return hunt.length;
     });
   }
@@ -228,9 +229,44 @@ export function createAppsHost({context, settings, backend, memory = null}) {
         if (id) 广场流.push(huntToFeed(f, id, now));
       }
       await backend.saveRoot({ 广场流 });
+      rootDrawNew(广场流.slice(-show.length));
       return 广场流.length;
     });
   }
 
-  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, rootShowcase, busy: app => !!busy[app]};
+  /** 画一条根源帖子的配图（帖子和图都存在 rootState 里）。 */
+  async function rootDrawImage(postId, {allowPaid = false, tags = ''} = {}) {
+    const state = await backend.rootState();
+    const hunt = [...(state.猎场流 || [])], show = [...(state.广场流 || [])];
+    const post = [...hunt, ...show].find(p => p.id === postId);
+    if (!post) throw Error('找不到这条帖子');
+    const save = () => backend.saveRoot({猎场流: hunt, 广场流: show});
+    if (String(tags).trim()) post.imageTags = String(tags).trim();
+    if (!post.imageTags) throw Error('这条帖子没有配图描述');
+    if (!backend.drawReady()) { post.imageState = 'failed'; post.imageNote = backend.drawMissing(); await save(); return null; }
+    const profile = state.猎物库?.[post.猎物ID]?.基础档案 || {};
+    try {
+      const names = [...settings().routes.map(r => r.name), userName()];
+      const input = pictureInputs(settings(), photoPicture(settings(), {text: post.文案, tags: post.imageTags, owner: profile.姓名 || '', names}), '');
+      post.imageState = 'waiting'; post.imageNote = '';
+      await save();
+      const result = await backend.generateImage({...input, allowPaid, name: `根源-${profile.姓名 || '帖子'}`, key: `root:${postId}`, label: `根源 · ${profile.姓名 || '帖子'}`});
+      post.photoId = result.photoId;
+      post.imageVersions = [...(post.imageVersions || []), post.photoId].filter(Boolean);
+      post.imageState = 'done'; post.imageNote = '';
+      await save();
+      return result.photoId;
+    } catch (error) {
+      post.imageState = 'failed'; post.imageNote = error.code === 'PAID' ? backend.paidPrompt().note : error.message;
+      await save();
+      throw error;
+    }
+  }
+  /** 刷新后给新帖子自动配图。 */
+  function rootDrawNew(posts) {
+    if (settings().moments.images === false) return;
+    for (const p of posts || []) if (p.imageTags && !p.photoId) rootDrawImage(p.id).catch(() => {});
+  }
+
+  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, rootShowcase, rootDrawImage, busy: app => !!busy[app]};
 }

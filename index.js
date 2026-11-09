@@ -474,6 +474,7 @@ function connect(source){
   forumDrawImage:(id,allowPaid,tags)=>{check();return appsHost.forumDrawImage(id,{allowPaid,tags:typeof tags==='string'?tags:''});},
   rootHunt:()=>{check();return appsHost.rootHunt();},
   rootShowcase:()=>{check();return appsHost.rootShowcase();},
+  rootDrawImage:(postId,allowPaid,tags)=>{check();return appsHost.rootDrawImage(postId,{allowPaid,tags:typeof tags==='string'?tags:''});},
   peekLook:(name,keep)=>{check();return appsHost.peekLook(name,{keep:keep===true});},
   memoryTidy:threadId=>{check();return memoryHost.tidy(threadId,{force:true});},
   storyTidy:()=>{check();return memoryHost.tidyStory({force:true});},
