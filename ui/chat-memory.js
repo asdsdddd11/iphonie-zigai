@@ -6,7 +6,7 @@ import {esc, btn, groupTitle, help} from './common.js';
 import {icon} from './icons.js';
 import {roots, unwritten, nextMerge, levelName, span, day} from '../core/memory.js';
 
-export function memorySheet(ctx, {threadId, title, assistant = false}) {
+export function memorySheet(ctx, {threadId, title, assistant = false, tidy = null}) {
   const source = ctx.api;
   const api = assistant ? {...source, getThread: id => source.assistantThread(id),
     memoryBook: id => source.assistantMemoryBook(id), memoryStatus: id => source.assistantMemoryStatus?.(id),
@@ -35,7 +35,7 @@ export function memorySheet(ctx, {threadId, title, assistant = false}) {
     const used = st.used;
     d.body.innerHTML = `<p class="hint">${state}${layers.length ? `<br>现在有 ${layers.join('、')}。` : ''}</p>
       ${st.busy ? '<p class="moments-busy" role="status">正在整理……</p>' : ''}${st.error ? `<p class="hint error-copy">上次整理没成功：${esc(st.error)}</p>` : ''}${st.vectorError ? `<p class="hint error-copy">向量模型没用上（改用本地检索）：${esc(st.vectorError)}</p>` : ''}
-      <div class="actions" style="margin-top:0">${btn('mem-tidy', icon('refresh') + '立即整理', 'secondary', st.busy || (older < 4 && !nextMerge(book, m)) ? 'disabled' : '')}</div>
+      <div class="actions" style="margin-top:0">${btn('mem-tidy', icon('refresh') + '立即整理', 'secondary', st.busy || (!tidy && older < 4 && !nextMerge(book, m)) ? 'disabled' : '')}</div>
       ${used ? groupTitle('上一次回复带上了', help('「长期记忆」是下面没被合并的那几份；「想起来的旧聊天」是按最近几句话从更早的原话里找出来的。')) + `<div class="group pad mem-used"><p>${used.nodes ? `长期记忆 ${used.nodes} 份` : '还没有长期记忆'}${used.recalled.length ? ` · 想起来 ${used.recalled.length} 段旧聊天（${used.vector ? '向量检索' : '本地检索'}）` : ''}</p>${used.recalled.map(r => `<details class="mem-recall"><summary>${esc(span(r.from, r.to))}<small>相关度 ${Math.round(r.score * 100)}%</small></summary><pre>${esc(r.text)}</pre></details>`).join('')}</div>` : ''}
       ${groupTitle(`记忆（发给模型的 ${top.length} 份）`, help('从早到晚排。每份点开能看全文、修改或删除；被合并进更高一层的，折在那一份里面，不会重复发给模型。删除一份总结，它包含的那几份会重新发给模型（之后再合并）。'))}
       ${top.length ? `<div class="mem-list">${top.map(n => node(n, book)).join('')}</div>` : '<p class="hint">还没有记忆。聊得多了，最近几十条之外的消息会自动整理进来。</p>'}
@@ -51,7 +51,7 @@ export function memorySheet(ctx, {threadId, title, assistant = false}) {
     try {
       switch (el.dataset.action) {
         case 'mem-tidy': {
-          const job = api.memoryTidy(threadId);
+          const job = tidy ? tidy() : api.memoryTidy(threadId);
           draw();
           const n = await job;
           ctx.notify(n ? `整理好了 ${n} 份` : '没有要整理的');

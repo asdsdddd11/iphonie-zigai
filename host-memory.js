@@ -237,7 +237,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
       if (!o.enabled) return 0;
       const entries = storyEntries();
       const book = await backend.memoryBook(storyBookId());
-      const keep = 6, batch = 20;
+      const keep = Math.max(2, activeChatPreset(settings().chat).context || 2), batch = 20;
       const done = Number(book.throughAt) || 0;
       const available = Math.max(0, entries.length - keep);
       if (available - done < (force ? 4 : batch)) return 0;
@@ -310,10 +310,16 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
     try {
       const peek = (await backend.apps.list('peek')).find(p => p.name === name);
       if (peek) {
-        if (peek.notes?.length) for (const n of peek.notes) items.push({text: `备忘录：${n.title ? n.title + '：' : ''}${n.text}`, at: peek.at || 0});
-        if (peek.cart?.length) items.push({text: `想买：${peek.cart.map(c => `${c.name}${c.note ? '（' + c.note + '）' : ''}`).join('、')}`, at: peek.at || 0});
-        if (peek.searches?.length) items.push({text: `搜过：${peek.searches.join('、')}`, at: peek.at || 0});
-        if (peek.chats?.length) for (const c of peek.chats) items.push({text: `和别人聊（${c.with}）：${c.lines.slice(-2).map(l => `${l.from}：${l.text}`).join('；')}`, at: peek.at || 0});
+        const at = peek.at || 0;
+        for (const n of peek.notes || []) items.push({text: `备忘录：${n.title ? n.title + '：' : ''}${n.text}`, at});
+        for (const x of peek.photos || []) items.push({text: `相册：${x.text}${x.tags ? '（' + x.tags + '）' : ''}`, at});
+        if (peek.cart?.length) items.push({text: `购物车：${peek.cart.map(c => `${c.name}${c.note ? '（' + c.note + '）' : ''}`).join('、')}`, at});
+        if (peek.searches?.length) items.push({text: `搜过：${peek.searches.join('、')}`, at});
+        if (peek.calls?.length) items.push({text: `通话记录：${peek.calls.map(c => `${c.with}（${c.dir === 'missed' ? '未接' : c.dir === 'out' ? '打出去' : '打进来'}${c.long ? ' ' + c.long : ''}）`).join('、')}`, at});
+        if (peek.events?.length) items.push({text: `日历：${peek.events.map(e => `${e.when || ''}${e.what}`).join('、')}`, at});
+        if (peek.songs?.length) items.push({text: `听歌：${peek.songs.map(s => `${s.title}${s.artist ? ' - ' + s.artist : ''}`).join('、')}`, at});
+        if (peek.wallpaper?.text) items.push({text: `壁纸：${peek.wallpaper.text}`, at});
+        for (const c of peek.chats || []) items.push({text: `和别人聊（${c.with}）：${c.lines.slice(-2).map(l => `${l.from}：${l.text}`).join('；')}`, at});
       }
     } catch {}
     try {
@@ -337,7 +343,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
     const book = await backend.memoryBook(lifeBook(name));
     // 1. 新的 level 0 生活摘要（累积，不覆盖旧摘要）
     const prompt0 = [
-      {role: 'system', content: `你在把${name}的生活记录整理成一段生活摘要（300 到 500 字），以后能直接拿来接着聊。只根据下面给的记录写：里面有什么就写什么（朋友圈动态、论坛发言、手机里的生活记录都可能出现，也可能没有）；没提到的内容一律不补、不编造。直接写正文，不要标题。`},
+      {role: 'system', content: `你在把${name}的生活记录整理成一段生活摘要（200 到 350 字），以后能直接拿来接着聊。只根据下面给的记录写，没提到的内容一律不补、不编造。写主线和关键：TA 最近在忙什么、心情和处境、和谁关系有变化、许过什么承诺、有什么没解决的事。具体细节（相册里每张照片、购物车每件货、每条搜索）不用逐条列，一两句带过就好，翻旧账时按原文查。直接写正文，不要标题。`},
       {role: 'user', content: `生活记录：\n${text.slice(0, 6000)}`},
     ];
     const summary = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: prompt0, trimNames: false}));
@@ -349,7 +355,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
       const merge = nextMerge(current, {stage: 3, epic: 4});
       if (!merge) break;
       const mprompt = [
-        {role: 'system', content: `你在整理${name}的生活记忆：把下面几段按时间排好的${levelName(merge.level - 1)}合成一份「${levelName(merge.level)}」（${merge.level === 1 ? '400 到 700 字' : '400 到 900 字'}）。先按时间说清这段时间里的主线和转折，再写：TA 的近况、喜好、习惯、没解决的事。前后矛盾时以后面的为准。细节宁可多留，不要只写空泛的总结。只根据下面的内容写，不编造。直接写正文，不要标题。`},
+        {role: 'system', content: `你在整理${name}的生活记忆：把下面几段按时间排好的${levelName(merge.level - 1)}合成一份「${levelName(merge.level)}」（${merge.level === 1 ? '300 到 500 字' : '400 到 700 字'}）。先按时间说清这段时间里的主线、转折和关系变化，再写：TA 的近况、喜好、习惯、没解决的事。细节不用逐条堆，抓主干和关键点；具体细节按原文召回。前后矛盾时以后面的为准。只根据下面的内容写，不编造。直接写正文，不要标题。`},
         {role: 'user', content: merge.nodes.map(n => `【${levelName(n.level)} · ${span(n.from, n.to)}】\n${n.text}`).join('\n\n')},
       ];
       const mtext = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: mprompt, trimNames: false}));

@@ -476,6 +476,7 @@ function connect(source){
   rootShowcase:()=>{check();return appsHost.rootShowcase();},
   peekLook:(name,keep)=>{check();return appsHost.peekLook(name,{keep:keep===true});},
   memoryTidy:threadId=>{check();return memoryHost.tidy(threadId,{force:true});},
+  storyTidy:()=>{check();return memoryHost.tidyStory({force:true});},
   memoryStatus:threadId=>{check();return memoryHost.status(threadId);},
   storySources:()=>{check();return memoryHost.storySources();},
   peekBusy:()=>{check();return appsHost.busy('peek');},

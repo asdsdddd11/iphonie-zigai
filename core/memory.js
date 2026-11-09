@@ -19,8 +19,8 @@ export function defaultMemory() {
 }
 /** Extension prompts of memory plugins the phone knows by name (any other can be picked by hand). */
 export const STORY_MEMORY = Object.freeze({bakemono_memory: '剧情剪辑台', '1_memory': '酒馆总结'});
-/** 正文摘要（小手机自己做，不依赖记忆插件）：把一段正文写成能接着聊的剧情摘要。 */
-export const STORY_SUMMARY_PROMPT = `你在整理这段剧情的正文，写成一段以后能直接拿来接着聊的剧情摘要（300 到 600 字）。要留下：谁和谁发生了什么、关系的变化、承诺和约定、没解决的事、重要的时间地点和细节。只根据下面的正文写，没写到的不要补、不编造。直接写正文，不要标题。`;
+/** 正文摘要（小手机自己做，不依赖记忆插件）：把一段正文写成能接着聊的剧情摘要（主线为主，细节交给向量召回）。 */
+export const STORY_SUMMARY_PROMPT = `你在整理这段剧情的正文，写成一段以后能直接拿来接着聊的剧情摘要（250 到 450 字）。写主线和关键：谁和谁发生了什么、关系怎么变、许过什么承诺、有什么没解决的事。具体细节不用逐条堆，抓主干；翻旧账时按原文查。只根据下面的正文写，没写到的不要补、不编造。直接写正文，不要标题。`;
 /** The story memory other plugins put into the tavern's extension prompts, for the phone's requests ('' without). */
 export function storyMemoryText(prompts, keys, cap = 4000) {
   const parts = [];
