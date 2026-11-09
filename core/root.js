@@ -47,10 +47,22 @@ function normalizeTarget(t = {}) {
       开发阶段: count > 0 ? stageOf(count) : Math.min(5, Math.max(0, Math.round(num(配种信息.开发阶段, 0)))),
       配种次数: count,
       当前配种者: clip(配种信息.当前配种者, 40) || '无',
-      经手配种者: {}, 玩法历史: {}, 过往评价,
+      经手配种者: record(配种信息.经手配种者, 40),
+      玩法历史: record(配种信息.玩法历史, 200),
+      过往评价,
     },
     主页动态,
   };
+}
+
+/** [12] 那种 {H_1: 名字} / {P_1: 内容} 的结构：保留成对象，最多 20 条。 */
+function record(value, max) {
+  const out = {};
+  for (const [k, v] of Object.entries(value || {}).slice(0, 20)) {
+    const text = clip(v, max);
+    if (text) out[clip(k, 20) || ('r' + Object.keys(out).length)] = text;
+  }
+  return out;
 }
 
 function normalizeFeed(rows) {
@@ -130,6 +142,8 @@ export const HUNT_PROMPT = `${HUNT_LORE}
 标签：xx
 过往动态：xx
 过往评价：xx
+经手配种者：xx
+玩法历史：xx
 配图：xx
 评论1：留言者名：内容
 评论2：留言者名：内容
@@ -189,11 +203,15 @@ export function stageOf(count) {
 export function huntToTarget(f) {
   const count = Math.max(0, Number(f['配种次数']) || 0);
   const 过往评价 = {};
-  String(f['过往评价'] || '').split('／').map(s => s.trim()).filter(Boolean).slice(0, 5).forEach((text, i) => { 过往评价['r' + i] = text; });
+  String(f['过往评价'] || '').split('／').map(s => s.trim()).filter(Boolean).slice(0, 5).forEach((text, i) => { 过往评价['R_' + (i + 1)] = text; });
+  const 经手配种者 = {};
+  String(f['经手配种者'] || '').split('／').map(s => s.trim()).filter(Boolean).slice(0, 20).forEach((text, i) => { 经手配种者['H_' + (i + 1)] = text; });
+  const 玩法历史 = {};
+  String(f['玩法历史'] || '').split('／').map(s => s.trim()).filter(Boolean).slice(0, 20).forEach((text, i) => { 玩法历史['P_' + (i + 1)] = text; });
   const 主页动态 = {};
   String(f['过往动态'] || '').split('／').map(s => s.trim()).filter(Boolean).slice(0, 3).forEach((row, i) => {
     const [文案, 媒体描述, 标签] = row.split(/[｜|]/).map(s => (s || '').trim());
-    if (文案) 主页动态['d' + i] = { 文案, 媒体类型: 'image', 媒体描述: 媒体描述 || '', 标签: 标签 || '' };
+    if (文案) 主页动态['Post_' + (i + 1)] = { 文案, 媒体类型: 'image', 媒体描述: 媒体描述 || '', 标签: 标签 || '' };
   });
   return {
     基础档案: {
@@ -206,8 +224,8 @@ export function huntToTarget(f) {
     配种信息: {
       开发阶段: stageOf(count),
       配种次数: count,
-      当前配种者: '无',
-      经手配种者: {}, 玩法历史: {}, 过往评价,
+      当前配种者: String(f['主人'] || '无').trim() || '无',
+      经手配种者, 玩法历史, 过往评价,
     },
     主页动态,
   };
