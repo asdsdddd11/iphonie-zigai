@@ -146,7 +146,7 @@ export const HUNT_PROMPT = `${HUNT_LORE}
 文案：xx
 媒体描述：xx
 标签：xx
-过往动态：xx
+过往动态：文案｜媒体描述｜标签 ／ 文案｜媒体描述｜标签 ／ 文案｜媒体描述｜标签（三条，每条内部用｜分隔，三条之间用／分隔；标签要带 #；绝对不许把媒体描述和文案揉成一句话，也不许写成「1. 2. 3.」的编号列表）
 过往评价：xx
 经手配种者：xx
 玩法历史：xx
@@ -227,7 +227,10 @@ export function huntToTarget(f) {
   const 玩法历史 = {};
   String(f['玩法历史'] || '').split('／').map(s => s.trim()).filter(Boolean).slice(0, 20).forEach((text, i) => { 玩法历史['P_' + (i + 1)] = text; });
   const 主页动态 = {};
-  String(f['过往动态'] || '').split('／').map(s => s.trim()).filter(Boolean).slice(0, 3).forEach((row, i) => {
+  // 兼容两种写法：／ 分隔的三条，或者「1. … 2. … 3. …」编号列表
+  let dynRows = String(f['过往动态'] || '').split('／').map(s => s.trim()).filter(Boolean);
+  if (dynRows.length <= 1) dynRows = String(f['过往动态'] || '').split(/\s*\d+[.、．]\s*/).map(s => s.trim()).filter(Boolean);
+  dynRows.slice(0, 3).forEach((row, i) => {
     const [文案, 媒体描述, 标签] = row.split(/[｜|]/).map(s => (s || '').trim());
     if (文案) 主页动态['Post_' + (i + 1)] = { 文案, 媒体类型: 'image', 媒体描述: 媒体描述 || '', 标签: 标签 || '' };
   });
