@@ -278,7 +278,10 @@ export function rootApp(ctx) {
       await v.busy(el, async () => { const n = sub === 'showcase' ? await api.rootShowcase(q) : await api.rootHunt(q); ctx.notify(`搜出 ${n} 条，已放最前`); render(); });
     }
     else if (action === 'root-chat') {
-      await v.busy(el, async () => { const r = await api.rootAddContact(el.dataset.id); ctx.notify(r.added ? `已把「${r.name}」加进通讯录` : `「${r.name}」已经在通讯录里了`); });
+      await v.busy(el, async () => {
+        const r = await api.rootAddContact(el.dataset.id);
+        ctx.notify(r.stabled ? `「${r.name}」已加进通讯录，也归你了（进马厩）` : (r.added ? `已把「${r.name}」加进通讯录` : `「${r.name}」已经在通讯录里了`));
+      });
     }
     else if (action === 'root-apply') ctx.notify('申请配种后续接入（在便器广场）');
   });

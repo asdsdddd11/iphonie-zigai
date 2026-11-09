@@ -277,7 +277,7 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     if (settings().moments.images === false) return;
     for (const p of posts || []) if (p.imageTags && !p.photoId) rootDrawImage(p.id).catch(() => {});
   }
-  /** 私聊：按根源里的档案在小手机建一个角色，再放进当前卡的通讯录（已在就不重复建）。 */
+  /** 私聊：按根源里的档案在小手机建一个角色，再放进当前卡的通讯录；和用户对话后这个人归用户，进马厩。 */
   async function rootAddContact(targetId) {
     const state = await backend.rootState();
     const t = state.猎物库?.[targetId];
@@ -293,7 +293,18 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       backend.addRoleContact(name);
       memory?.tidyLife?.(name).catch(() => {});
     }
-    return { name, added: !exists };
+    // 世界书规则：用户和 TA 对话后，当前配种者变更为用户，并更新到我的马厩。
+    const 马厩 = [...(state.马厩 || [])];
+    const 猎物库 = { ...state.猎物库 };
+    const me = userName();
+    let changed = false;
+    if (!马厩.includes(targetId)) { 马厩.push(targetId); changed = true; }
+    if (猎物库[targetId]?.配种信息?.当前配种者 !== me) {
+      猎物库[targetId] = { ...猎物库[targetId], 配种信息: { ...猎物库[targetId].配种信息, 当前配种者: me } };
+      changed = true;
+    }
+    if (changed) await backend.saveRoot({ 马厩, 猎物库 });
+    return { name, added: !exists, stabled: changed };
   }
 
   return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, rootShowcase, rootDrawImage, rootAddContact, busy: app => !!busy[app]};
