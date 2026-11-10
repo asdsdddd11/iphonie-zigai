@@ -387,8 +387,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
 4. 照片和画面：相册里拍过什么、壁纸是什么、拍的时候在哪、和谁在一起。照片是生活里最具体的部分，要写出来，不要只写「有几张照片」。
 5. 说过的话：有代表性的一两句原话，能看出 TA 的语气。
 
-写得具体，但不要流水账：同一类事合在一句里说，购物车和搜索记录这类一次性的东西不逐条列。
-写得紧凑：不用「然后」「接着」「于是」这类过渡，不用「他感到」「他觉得」这类解释，直接写发生了什么、说了什么、变成什么样；同样的信息用更少的字。直接写正文，不要标题。`},
+写得具体，但不要流水账：同一类事合在一句里说，购物车和搜索记录这类一次性的东西不逐条列。直接写正文，不要标题。`},
       {role: 'user', content: `生活记录：\n${text.slice(0, 6000)}`},
     ];
     const summary = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: prompt0, trimNames: false}));
@@ -400,8 +399,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
       const merge = nextMerge(current, {stage: 3, epic: 4});
       if (!merge) break;
       const mprompt = [
-        {role: 'system', content: `你在整理${name}的生活记忆：把下面几段按时间排好的${levelName(merge.level - 1)}合成一份「${levelName(merge.level)}」（${merge.level === 1 ? '400 到 600 字' : '500 到 800 字'}）。先按时间说清这段时间里的主线、转折和关系变化，再写：TA 的近况、喜好、习惯、身体上的变化、照片里留下的画面、没解决的事。照片和具体场面是生活里最具体的部分，要写出来，不要只写「有几张照片」。同类的事合在一起说，购物车和搜索记录这类不逐条堆。前后矛盾时以后面的为准。只根据下面的内容写，不编造。
-写得紧凑：不用「然后」「接着」「于是」这类过渡，不用「他感到」「他觉得」这类解释，直接写发生了什么、说了什么、变成什么样；同样的信息用更少的字。直接写正文，不要标题。`},
+        {role: 'system', content: `你在整理${name}的生活记忆：把下面几段按时间排好的${levelName(merge.level - 1)}合成一份「${levelName(merge.level)}」（${merge.level === 1 ? '400 到 600 字' : '500 到 800 字'}）。先按时间说清这段时间里的主线、转折和关系变化，再写：TA 的近况、喜好、习惯、身体上的变化、照片里留下的画面、没解决的事。照片和具体场面是生活里最具体的部分，要写出来，不要只写「有几张照片」。同类的事合在一起说，购物车和搜索记录这类不逐条堆。前后矛盾时以后面的为准。只根据下面的内容写，不编造。直接写正文，不要标题。`},
         {role: 'user', content: merge.nodes.map(n => `【${levelName(n.level)} · ${span(n.from, n.to)}】\n${n.text}`).join('\n\n')},
       ];
       const mtext = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: mprompt, trimNames: false}));
@@ -422,7 +420,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
         if (used + cost > cap && keep.size) continue;
         keep.add(n.id); used += cost;
       }
-      kept = `【${name}的生活】\n` + list.filter(n => keep.has(n.id)).map(n => `- ${span(n.from, n.to)}：${n.text}`).join('\n');
+      kept = `【${name}的生活】（朋友圈、论坛和手机里的事，按时间整理成的）\n` + list.filter(n => keep.has(n.id)).map(n => `- ${levelName(n.level)}（${span(n.from, n.to)}）：${n.text}`).join('\n');
     }
     let found = [];
     if (String(query || '').trim()) {
