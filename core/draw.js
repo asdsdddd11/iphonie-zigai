@@ -738,6 +738,7 @@ export function writeRequest(settings, {idea = '', cast = [], only = null} = {})
  */
 export function tagTextRequest(settings, text, mode = 'translate', wish = '') {
   const gpt = settings.draw?.engine === 'gpt', prompt = String(text ?? '').trim();
+  if (mode === 'tags') return [{role: 'system', content: promptText(settings.promptRules, 'draw-prompt', 'tags', {'GPT': gpt})}, {role: 'user', content: prompt}];
   if (mode !== 'revise') return [{role: 'system', content: promptText(settings.promptRules, 'draw-prompt', 'translate', {'GPT': gpt})}, {role: 'user', content: prompt}];
   return [{role: 'system', content: promptText(settings.promptRules, 'draw-prompt', 'revise', {'GPT': gpt})},
     {role: 'user', content: promptText(settings.promptRules, 'draw-prompt', 'reviseAsk', {'提示词': prompt, '想怎么改': String(wish ?? '').trim() || '把里面写的中文换成英文 tag，别的不动'})}];

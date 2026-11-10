@@ -443,7 +443,7 @@ export function createChatHost({context, settings, backend, notice, memory = nul
         // Drawn on its own (not asked for) only when it costs nothing: no words spent turning it into tags otherwise.
         if (!allowPaid && backend.drawQuote?.()?.free === false) throw Object.assign(Error('要花钱'), {code: 'PAID'});
         await set({imageState: 'waiting', imageNote: ''});
-        const tags = tagTextAnswer(await backend.generateText(context(), {use: 'picture', prompt: tagTextRequest(settings(), m.text, 'translate'), plainText: true, trimNames: false, responseLength: Math.min(6000, 1500 + m.text.length * 3)})).replace(/\s+/g, ' ').trim().slice(0, 6000);
+        const tags = tagTextAnswer(await backend.generateText(context(), {use: 'picture', prompt: tagTextRequest(settings(), m.text, 'tags'), plainText: true, trimNames: false, responseLength: Math.min(6000, 1500 + m.text.length * 3)})).replace(/\s+/g, ' ').trim().slice(0, 6000);
         if (!tags) throw Error('没把照片的描述写成画图用的 tag，再点一次试试');
         m.imageTags = tags;
         await set({imageTags: tags});
