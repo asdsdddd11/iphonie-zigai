@@ -130,14 +130,18 @@ export function createAppsHost({context, settings, backend, memory = null}) {
 
   /** Draws one photo of a character's album (index 'wallpaper': their wallpaper, upright). Without allowPaid, only when
    *  the free tier covers it. */
-  async function peekDraw(name, index, {allowPaid = false} = {}) {
+  async function peekDraw(name, index, {allowPaid = false, tags = ''} = {}) {
     // The open card's snapshot of this person, else the shared one from before 分区.
     const key = backend.spaceKey(), snap = (await backend.apps.get(peekId(name, key))) || (key ? await backend.apps.get(peekId(name)) : null), id = snap?.id;
     const wall = index === 'wallpaper', pick = doc => wall ? doc.wallpaper : doc.photos?.[index], photo = snap && pick(snap);
     if (!photo) throw Error(wall ? '没有壁纸，「再看一次」后就有了' : '这张照片已经不在了');
-    if (!photo.tags) throw Error((wall ? '壁纸' : '这张照片') + '没有画图用的描述，「再看一次」后就有了');
+    if (String(tags).trim() && !photo.tags) throw Error((wall ? '壁纸' : '这张照片') + '没有画图用的描述，「再看一次」后就有了');
+    if (!photo.tags && !String(tags).trim()) throw Error((wall ? '壁纸' : '这张照片') + '没有画图用的描述，「再看一次」后就有了');
     if (!backend.drawReady()) throw Error(backend.drawMissing() + '，相册只能看文字');
     const set = patch => backend.appsMutate('peek', () => backend.apps.change(id, doc => { const target = pick(doc); Object.assign(target, patch); for (const k of Object.keys(patch)) if (patch[k] === '') delete target[k]; }));
+    // 改提示词再画: the tags they wrote replace the saved ones, and the next draw uses them.
+    const clean = String(tags).trim();
+    if (clean) { await set({tags: clean.slice(0, 600)}); photo.tags = clean.slice(0, 600); }
     // The saved looks of who the photo shows: the people its description names, else the owner (a selfie).
     const names = [...settings().routes.map(r => r.name), userName()], picture = photoPicture(settings(), {text: photo.text, tags: photo.tags, owner: name, names});
     try {

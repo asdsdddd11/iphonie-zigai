@@ -7,6 +7,8 @@ import {openImageViewer} from '../image-viewer.js';
 import {peekPhone} from './peek-phone.js';
 import {viewerHeart} from './photo-heart.js';
 import {downloadAction, shareAction} from '../download.js';
+import {editTags} from '../host-ask.js';
+import {pictureInputs, photoTags, photoPicture} from '../core/draw.js';
 
 function ago(at) {
   const s = (Date.now() - at) / 1000;
@@ -81,6 +83,30 @@ export function peekApp(ctx) {
     for (const id of ids) { const src = await urlFor(id); if (src) items.push({src, alt: photo.text || '', info: null}); }
     if (!items.length) return;
     const start = Math.max(0, ids.indexOf(photo.photoId)), label = at === 'wallpaper' ? '壁纸' : '这张照片';
+    /** 重画：带着（可能刚改过的）tag 再画一版，旧版都留着。 */
+    const redraw = async tags => {
+      const paid = api.drawQuote?.().free === false, ask = api.paidPrompt?.();
+      if (paid && ask && !await ctx.confirm(ask.title, ask.text)) return false;
+      await api.peekDraw(who, at, paid, tags || '');
+      await render();
+      return true;
+    };
+    /** 改提示词再画。 */
+    const rewrite = async () => {
+      const tags = await editTags({doc: ctx.doc, text: photo.tags || '',
+        ask: (text, mode, wish) => api.tagText ? api.tagText(text, mode, wish) : Promise.reject(Error('看中文和改要在酒馆里用')),
+        about: `${label}用的英文 tag。改了以后重画也用它；之前画的几版还在，可以左右滑着比。`});
+      if (!tags?.trim()) return false;
+      return redraw(tags.trim());
+    };
+    /** 在绘图中打开。 */
+    const inDraw = async () => {
+      if (!ctx.openDraw) return false;
+      const state = api.getState(), names = [...state.routes.map(r => r.name), api.userName?.() || '我'];
+      const tags = photoTags({text: photo.text || '', tags: photo.tags || '', owner: who, names});
+      ctx.openDraw({...pictureInputs(state, photoPicture(state, {text: photo.text || '', tags: photo.tags || '', owner: who, names})), tag: tags, seed: null});
+      return true;
+    };
     let viewer;
     const safe = fn => async i => { viewer?.close(); try { return await fn(i); } catch (error) { ctx.notify(error.message, {error: true}); return false; } };
     const heart = await viewerHeart(api, i => ids[i], ctx.notify);
@@ -90,7 +116,9 @@ export function peekApp(ctx) {
       actions: [heart,
         downloadAction(ctx.doc, async i => { const p = await api.getPhoto(ids[i]); return p ? {source: p.blob, name: `查手机 ${who}`} : null; }, ctx.notify),
         shareAction(ctx.doc, async i => { const p = await api.getPhoto(ids[i]); return p ? {source: p.blob, name: `查手机 ${who}`} : null; }, ctx.notify),
-        {label: '重画', run: safe(async () => { await draw([at]); return true; })},
+        {label: '重画', run: safe(() => redraw(''))},
+        {label: '改提示词再画', run: safe(rewrite)},
+        ...(ctx.openDraw ? [{label: '在绘图中打开', run: safe(inDraw)}] : []),
         {label: '删除这版', danger: true, run: safe(async i => {
           if (!await ctx.confirm(`删除${label}？`, items.length > 1 ? '这张换成另一版。' : `${label}就没有了，之后可以再画。`)) return false;
           await api.deletePhoto(ids[i]); const rest = ids.filter(x => x !== ids[i]);

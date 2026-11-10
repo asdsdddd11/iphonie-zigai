@@ -484,7 +484,7 @@ function connect(source){
   memoryStatus:threadId=>{check();return memoryHost.status(threadId);},
   storySources:()=>{check();return memoryHost.storySources();},
   peekBusy:()=>{check();return appsHost.busy('peek');},
-  peekDraw:(name,index,allowPaid)=>{check();return appsHost.peekDraw(name,index,{allowPaid});},
+  peekDraw:(name,index,allowPaid,tags)=>{check();return appsHost.peekDraw(name,index,{allowPaid,tags:typeof tags==='string'?tags:''});},
   peekPickImage:(name,index,photoId)=>{check();return appsHost.peekPickImage(name,index,photoId);},
   callStatus:()=>{check();return callHost.status();},
   callDial:name=>{check();return callHost.dial(name);},

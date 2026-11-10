@@ -378,7 +378,16 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
     const book = await backend.memoryBook(lifeBook(name));
     // 1. 新的 level 0 生活摘要（累积，不覆盖旧摘要）
     const prompt0 = [
-      {role: 'system', content: `你在把${name}的生活记录整理成一段生活摘要（200 到 350 字），以后能直接拿来接着聊。只根据下面给的记录写，没提到的内容一律不补、不编造。写主线和关键：TA 最近在忙什么、心情和处境、和谁关系有变化、许过什么承诺、有什么没解决的事。具体细节（相册里每张照片、购物车每件货、每条搜索）不用逐条列，一两句带过就好，翻旧账时按原文查。直接写正文，不要标题。`},
+      {role: 'system', content: `你在把${name}的生活记录整理成一段生活摘要（400 到 700 字），以后能直接拿来接着聊，也是${name}自己回忆生活的依据。只根据下面给的记录写，没提到的内容一律不补、不编造。
+
+要写进去的：
+1. 主线和近况：最近在忙什么、去过哪、心情和处境。
+2. 关系变化：和谁走得近、和谁有矛盾、许过什么承诺、有什么没解决的事。
+3. 身体和打扮：身体上的变化、常穿什么、身上的痕迹和习惯。
+4. 照片和画面：相册里拍过什么、壁纸是什么、拍的时候在哪、和谁在一起。照片是生活里最具体的部分，要写出来，不要只写「有几张照片」。
+5. 说过的话：有代表性的一两句原话，能看出 TA 的语气。
+
+写得具体，但不要流水账：同一类事合在一句里说，购物车和搜索记录这类一次性的东西不逐条列。直接写正文，不要标题。`},
       {role: 'user', content: `生活记录：\n${text.slice(0, 6000)}`},
     ];
     const summary = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: prompt0, trimNames: false}));
@@ -390,7 +399,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
       const merge = nextMerge(current, {stage: 3, epic: 4});
       if (!merge) break;
       const mprompt = [
-        {role: 'system', content: `你在整理${name}的生活记忆：把下面几段按时间排好的${levelName(merge.level - 1)}合成一份「${levelName(merge.level)}」（${merge.level === 1 ? '300 到 500 字' : '400 到 700 字'}）。先按时间说清这段时间里的主线、转折和关系变化，再写：TA 的近况、喜好、习惯、没解决的事。细节不用逐条堆，抓主干和关键点；具体细节按原文召回。前后矛盾时以后面的为准。只根据下面的内容写，不编造。直接写正文，不要标题。`},
+        {role: 'system', content: `你在整理${name}的生活记忆：把下面几段按时间排好的${levelName(merge.level - 1)}合成一份「${levelName(merge.level)}」（${merge.level === 1 ? '400 到 600 字' : '500 到 800 字'}）。先按时间说清这段时间里的主线、转折和关系变化，再写：TA 的近况、喜好、习惯、身体上的变化、照片里留下的画面、没解决的事。照片和具体场面是生活里最具体的部分，要写出来，不要只写「有几张照片」。同类的事合在一起说，购物车和搜索记录这类不逐条堆。前后矛盾时以后面的为准。只根据下面的内容写，不编造。直接写正文，不要标题。`},
         {role: 'user', content: merge.nodes.map(n => `【${levelName(n.level)} · ${span(n.from, n.to)}】\n${n.text}`).join('\n\n')},
       ];
       const mtext = parseMemory(await backend.generateText(context(), {use: 'memory', prompt: mprompt, trimNames: false}));
