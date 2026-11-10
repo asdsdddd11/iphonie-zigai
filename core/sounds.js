@@ -242,7 +242,7 @@ export function missingKey(kind, name) { return 'missing:' + kind + ':' + soundN
 export function packRows(pack, base) {
   if (!pack || pack.format !== 'st-iphonie-pack' || !Array.isArray(pack.sounds)) return [];
   const credits = pack.credits || {};
-  return pack.sounds.filter(s => s && typeof s.file === 'string' && /^[\w.-]+\.mp3$/.test(s.file)).map(s => {
+  return pack.sounds.filter(s => s && typeof s.file === 'string' && /^[^/\\:*?"<>|]+\.mp3$/i.test(s.file)).map(s => {
     const row = soundRow({...s, source: 'pack'}), c = credits[s.credit];
     return {...row, id: `pack:${s.file}#${row.name}#${row.layer}`, mime: 'audio/mpeg', size: Number(s.size) || 0, at: 0, url: new URL(s.file, base).href,
       credit: c ? `${String(c.title || '').slice(0, 60)} · ${String(c.user || '').slice(0, 40)}` : ''};
