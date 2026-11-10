@@ -151,10 +151,13 @@ export function parsePeek(reply, {name, user = '我'} = {}) {
 
 /** The id of a person's snapshot: one per person (per card, with 分区 on). */
 export const peekId = (name, space = '') => 'peek:' + (space ? space + ':' : '') + name;
-/** A picture as it is stored: its description, (when it can be drawn) its tags, the drawn picture and how drawing went. */
+/** A picture as it is stored: its description, (when it can be drawn) its tags, the drawn picture, every version drawn of
+ *  it, and how drawing went. */
 function cleanPicture(x) {
   const photo = {text: clip(x.text, 200).trim(), tags: clip(x.tags, 600).trim()};
   if (x.photoId) photo.photoId = clip(x.photoId, 512);
+  const versions = (Array.isArray(x.versions) ? x.versions : []).map(v => clip(v, 512).trim()).filter(Boolean).slice(-10);
+  if (versions.length) photo.versions = versions;
   if (['waiting', 'done', 'failed'].includes(x.state)) photo.state = x.state;
   if (x.note) photo.note = clip(x.note, 200);
   return photo;

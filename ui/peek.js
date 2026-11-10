@@ -5,6 +5,8 @@ import {createView, esc, btn, heading, avatar, empty, help} from './common.js';
 import {icon} from './icons.js';
 import {openImageViewer} from '../image-viewer.js';
 import {peekPhone} from './peek-phone.js';
+import {viewerHeart} from './photo-heart.js';
+import {downloadAction, shareAction} from '../download.js';
 
 function ago(at) {
   const s = (Date.now() - at) / 1000;
@@ -68,6 +70,35 @@ export function peekApp(ctx) {
     }
     await render();
   }
+  /** 点开相册里的一张：和论坛、朋友圈一样——画过的版本都在，左右滑能看，切了哪版下次就显示哪版。 */
+  async function openPicture(s, img) {
+    const key = img?.dataset?.key ?? '', at = key === 'wallpaper' ? 'wallpaper' : Number(key);
+    const photo = at === 'wallpaper' ? s.wallpaper : s.photos?.[at];
+    if (!photo) { if (img?.src) openImageViewer({doc: ctx.doc, src: img.src, alt: img.alt || '', from: img}); return; }
+    const ids = (Array.isArray(photo.versions) && photo.versions.length ? photo.versions : photo.photoId ? [photo.photoId] : []).filter(Boolean);
+    if (!ids.length) { if (img?.src) openImageViewer({doc: ctx.doc, src: img.src, alt: photo.text || '', from: img}); return; }
+    const items = [];
+    for (const id of ids) { const src = await urlFor(id); if (src) items.push({src, alt: photo.text || '', info: null}); }
+    if (!items.length) return;
+    const start = Math.max(0, ids.indexOf(photo.photoId)), label = at === 'wallpaper' ? '壁纸' : '这张照片';
+    let viewer;
+    const safe = fn => async i => { viewer?.close(); try { return await fn(i); } catch (error) { ctx.notify(error.message, {error: true}); return false; } };
+    const heart = await viewerHeart(api, i => ids[i], ctx.notify);
+    if (v.disposed) return;
+    viewer = openImageViewer({doc: ctx.doc, from: img, caption: photo.text || '',
+      gallery: {items, index: start, onIndex: i => { const fn = api.peekPickImage; if (fn) fn(who, at, ids[i]).then(() => render(), () => {}); }},
+      actions: [heart,
+        downloadAction(ctx.doc, async i => { const p = await api.getPhoto(ids[i]); return p ? {source: p.blob, name: `查手机 ${who}`} : null; }, ctx.notify),
+        shareAction(ctx.doc, async i => { const p = await api.getPhoto(ids[i]); return p ? {source: p.blob, name: `查手机 ${who}`} : null; }, ctx.notify),
+        {label: '重画', run: safe(async () => { await draw([at]); return true; })},
+        {label: '删除这版', danger: true, run: safe(async i => {
+          if (!await ctx.confirm(`删除${label}？`, items.length > 1 ? '这张换成另一版。' : `${label}就没有了，之后可以再画。`)) return false;
+          await api.deletePhoto(ids[i]); const rest = ids.filter(x => x !== ids[i]);
+          if (rest.length) await api.peekPickImage?.(who, at, rest[rest.length - 1]).catch(() => {});
+          await render(); return true;
+        })}
+      ].filter(Boolean)});
+  }
   /** Picks up the phone: the owner's own phone over the whole screen. */
   function pick(s) {
     device?.close();
@@ -76,7 +107,7 @@ export function peekApp(ctx) {
     const seen = new Set(), name = who;
     let unlocked = false;
     device = peekPhone(ctx, {host, snap: s, canDraw: () => api.drawReady(), draw, photo: urlFor,
-      view: img => openImageViewer({doc: ctx.doc, src: img.src, alt: img.alt, from: img}),
+      view: img => { openPicture(s, img).catch(error => ctx.notify(error.message, {error: true})); },
       play: song => { ctx.notify(`正在找「${song.title}」……`); api.musicPlay?.({...song, from: 'share'}).catch(error => ctx.notify(error.message, {error: true})); },
       see: part => { if (part === 'home') unlocked = true; else { unlocked = true; seen.add(part); } },
       close: () => { device = null; if (unlocked) { try { api.markPeeked?.(name, [...seen].slice(0, 6).join('、')); } catch { /* not worth a word */ } } if (!v.disposed) render().catch(() => {}); }});

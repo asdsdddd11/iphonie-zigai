@@ -153,7 +153,7 @@ export function peekPhone(ctx, {host, snap, canDraw, draw, photo, view, play = (
     const action = !canDraw() || !p.tags || p.photoId ? '' : p.state === 'waiting' ? '<p class="pp-note">正在画……</p>'
       : `<button type="button" class="pp-pill" data-pp="draw" data-key="${p.key}">${esc(p.state === 'failed' ? (p.note || '没画出来') + ' · 重画' : '画出来')}</button>`;
     return `<div class="pp-app pp-viewer">${bar(p.key === 'wallpaper' ? '壁纸' : `${item + 1} / ${list.length}`, '相册')}
-      <div class="pp-body">${p.photoId ? `<button type="button" class="pp-full" data-pp="zoom"><img data-photo="${esc(p.photoId)}" alt="${esc(p.text)}"></button>` : `<div class="pp-full pp-said" style="background:${tile(item, p.text)}"><p>${esc(p.text)}</p></div>`}
+      <div class="pp-body">${p.photoId ? `<button type="button" class="pp-full" data-pp="zoom"><img data-photo="${esc(p.photoId)}" data-key="${esc(String(p.key))}" alt="${esc(p.text)}"></button>` : `<div class="pp-full pp-said" style="background:${tile(item, p.text)}"><p>${esc(p.text)}</p></div>`}
       ${p.photoId ? `<p class="pp-caption">${esc(p.text)}</p>` : ''}${action}</div></div>`;
   }
   const noteDay = i => stamp(snap.at, 60 * 24 * i + 90 + i * 37);

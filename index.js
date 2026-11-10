@@ -485,6 +485,7 @@ function connect(source){
   storySources:()=>{check();return memoryHost.storySources();},
   peekBusy:()=>{check();return appsHost.busy('peek');},
   peekDraw:(name,index,allowPaid)=>{check();return appsHost.peekDraw(name,index,{allowPaid});},
+  peekPickImage:(name,index,photoId)=>{check();return appsHost.peekPickImage(name,index,photoId);},
   callStatus:()=>{check();return callHost.status();},
   callDial:name=>{check();return callHost.dial(name);},
   callAnswer:()=>{check();return callHost.answer();},

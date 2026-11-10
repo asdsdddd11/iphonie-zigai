@@ -147,12 +147,25 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       // free tier still holds).
       if (wall) { const up = sizeFor(input.params, '竖'), side = up.width, snap64 = n => Math.max(64, Math.round(n / 64) * 64); input.params = {...input.params, ...(up.width === up.height ? {width: snap64(side * .8125), height: snap64(side * 1.1875)} : up)}; }
       const result = await backend.generateImage({...input, allowPaid, name: `查手机-${name}`, key: `peek:${name}:${index}`, label: `查手机 · ${name}${wall ? ' · 壁纸' : ''}`});
-      await set({photoId: result.photoId, state: 'done', note: ''});
+      // 画过的版本都留着（和论坛、朋友圈一样）：点开大图可以左右滑，切了哪版就是哪版。
+      const versions = [...new Set([...(photo.versions || []), ...(photo.photoId ? [photo.photoId] : []), result.photoId])].slice(-10);
+      await set({photoId: result.photoId, versions, state: 'done', note: ''});
       return result.photoId;
     } catch (error) {
       await set({state: 'failed', note: error.code === 'PAID' ? backend.paidPrompt().note : error.message.slice(0, 200)});
       throw error;
     }
+  }
+
+  /** 查手机的相册：换这一张显示哪一版。index is the photo's place, or 'wallpaper'. */
+  async function peekPickImage(name, index, photoId) {
+    const key = backend.spaceKey(), snap = (await backend.apps.get(peekId(name, key))) || (key ? await backend.apps.get(peekId(name)) : null);
+    if (!snap?.id) throw Error('这个手机已经不在了，「再看一次」后才有');
+    if (!photoId) throw Error('不知道该换成哪一版');
+    return backend.appsMutate('peek', () => backend.apps.change(snap.id, doc => {
+      const target = index === 'wallpaper' ? doc.wallpaper : doc.photos?.[index];
+      if (target) target.photoId = photoId;
+    }));
   }
 
   // ---------- 论坛配图（和朋友圈一样） ----------
@@ -370,5 +383,5 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     return { name, added: !exists, stabled: changed };
   }
 
-  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, forumDrawImage, rootHunt, rootShowcase, rootDrawImage, rootPickImage, rootAddContact, busy: app => !!busy[app]};
+  return {forumRefresh, forumReact, forumReply, peekLook, peekDraw, peekPickImage, forumDrawImage, rootHunt, rootShowcase, rootDrawImage, rootPickImage, rootAddContact, busy: app => !!busy[app]};
 }
