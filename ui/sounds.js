@@ -57,6 +57,7 @@ export function soundsApp(ctx) {
         ${pack.hidden ? `<div class="list-row static"><span><strong>拿掉了 ${pack.hidden} 个自带声音</strong><small>拿掉的只是不用了，随时能找回</small></span>${btn('pack-restore', '找回', 'secondary small')}</div>` : ''}</div>` : '')
       + (missing.length ? groupTitle('缺的声音', `<small>${missing.length}</small>`) + `<div class="group">${missing.map(m => `<div class="list-row static sound-missing"><span><strong>${esc(m.name)}</strong><small>${KIND_NAMES[m.type]} · 想用过 ${m.count} 次${m.describe ? ' · ' + esc(m.describe) : ''}</small></span><span class="row-actions">${btn('missing-upload', icon('import'), 'icon-button', `data-type="${esc(m.type)}" data-name="${esc(m.name)}" aria-label="上传「${esc(m.name)}」"`)}${key ? btn('missing-make', icon('star'), 'icon-button', `data-type="${esc(m.type)}" data-name="${esc(m.name)}" data-describe="${esc(m.describe)}" aria-label="让 ElevenLabs 做「${esc(m.name)}」"`) : ''}${btn('missing-dismiss', icon('close'), 'icon-button', `data-type="${esc(m.type)}" data-name="${esc(m.name)}" aria-label="不要「${esc(m.name)}」"`)}</span></div>`).join('')}</div>` : '')
       + `<div class="actions">${`<label class="primary file-button">${icon('add')}添加声音<input type="file" data-sound-file multiple accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.opus,.webm" aria-label="选择声音文件"></label>`}${key ? btn('make-new', icon('star') + 'ElevenLabs 做一个', 'secondary') : ''}</div>`
+      + `<div class="actions"><label class="secondary file-button">${icon('import')}导入音效包<input type="file" data-pack-file accept=".json,application/json" aria-label="选择音效包"></label></div>`
       + (rows.length > 12 ? `<input class="search sound-search" data-sound-search type="search" placeholder="找声音（按名字）" value="${esc(query)}" aria-label="找声音">` : '')
       + (rows.length
         ? ['ambience', 'sfx'].map(type => { const list = names(type); return list.length ? groupTitle(KIND_NAMES[type], `<small>${list.length}</small>`) + `<div class="group">${list.map(nameRow).join('')}</div>` : ''; }).join('')
@@ -201,6 +202,12 @@ export function soundsApp(ctx) {
   v.on('input', '[data-volume]', el => { const out = el.closest('.field')?.querySelector('output'); if (out) out.textContent = el.value + '%'; });
   v.on('change', '[data-volume]', el => { api.saveSounds({[el.dataset.volume]: Number(el.value) / 100}); });
   v.on('change', '[data-sound-file]', el => { const files = [...el.files]; el.value = ''; if (!files.length) return; const preset = uploadFor; uploadFor = null; addFiles(files, preset); });
+  v.on('change', '[data-pack-file]', async el => {
+    const file = el.files[0]; el.value = '';
+    if (!file) return;
+    try { const r = await api.importSounds(file); await render(); ctx.notify(`导入了 ${r.added} 个声音${r.skipped ? `（${r.skipped} 个已经有了）` : ''}`); }
+    catch (error) { ctx.notify(error.message, {error: true}); }
+  });
   v.on('click', '[data-action]', async el => {
     switch (el.dataset.action) {
       case 'open-name': openName(el.dataset.type, el.dataset.name); break;
