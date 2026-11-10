@@ -71,7 +71,12 @@ export function parseForum(reply, {user = '我', mode = 'posts', handles = {}} =
   let post = null;
   for (const raw of body.split(/\r?\n/)) {
     const m = raw.match(LINE);
-    if (!m) continue;
+    if (!m) {
+      // 不是标记行：可能是正文的续行（模型常把正文写在「【帖子】作者｜标题」的下面一行）
+      const s = raw.trim();
+      if (post && s && !/^[\[【]/.test(s)) post.text = post.text ? post.text + '\n' + s : s;
+      continue;
+    }
     const [, kind, rest] = m;
     if (kind === '网名') {
       const [name, handle] = rest.split(/[|｜]/).map(s => person(clean(s)));
@@ -85,15 +90,16 @@ export function parseForum(reply, {user = '我', mode = 'posts', handles = {}} =
       let parts = rest.split(/[|｜]/).map(s => s.trim());
       // 「作者：正文」 without the bars: no title.
       if (parts.length < 2) { const s = rest.match(SAID); if (!s) continue; parts = [s[1], '', s[3]]; }
-      if (parts.length === 2) parts = [parts[0], '', parts[1]];
+      // 只有 2 段：作者｜X。X 可能是标题（正文在下面几行），也可能是正文（根本没写标题）。先当标题，看有没有续行再定。
+      if (parts.length === 2) parts = [parts[0], parts[1], ''];
       // 模型有时写成「真名｜网名｜正文」，把网名挤进标题位：认出这种错位，网名当作者，后面全当正文。
       if (parts.length >= 3) {
         const who = real(person(parts[0].replace(/[:：]$/, '')));
         const handle = out.names[who] || back.get(parts[0]);
         if (handle && parts[1] === handle) parts = [parts[1], '', ...parts.slice(2)];
       }
-      const author = real(person(parts[0].replace(/[:：]$/, ''))), title = clean(parts[1]).slice(0, FORUM_LIMITS.title), text = clean(parts.slice(2).join('｜')).slice(0, FORUM_LIMITS.text);
-      if (isUser(author) || !text) continue;
+      const author = real(person(parts[0].replace(/[:：]$/, ''))), title = clean(parts[1]).slice(0, FORUM_LIMITS.title), text = clean(parts.slice(2).join('｜'));
+      if (isUser(author) || !author) continue;
       post = {author, title, text, imageTags: '', replies: []};
       out.posts.push(post);
     } else if (kind === '配图') {
@@ -105,6 +111,12 @@ export function parseForum(reply, {user = '我', mode = 'posts', handles = {}} =
       if (said && list.length < 20) list.push({from, to: target(s[2]), text: said});
     }
   }
+  // 正文可能是「【帖子】」行加后面几行拼起来的：最后统一截断，仍然空的帖子不要
+  out.posts = out.posts.filter(p => {
+    if (!p.text && p.title) { p.text = p.title; p.title = ''; }   // 没有续行：那句标题其实就是正文
+    p.text = clip(p.text, FORUM_LIMITS.text);
+    return p.text;
+  });
   return out;
 }
 
