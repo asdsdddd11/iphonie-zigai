@@ -187,7 +187,7 @@ export function memoryText(book, {who = '', cap = MEMORY_LIMITS.cap} = {}) {
     if (used + cost > cap && keep.size) continue;
     keep.add(n.id); used += cost;
   }
-  return `【${who}的长期记忆】（更早的聊天整理成的，按时间排；最近的聊天记录另外附上）\n` + list.filter(n => keep.has(n.id)).map(n => `- ${levelName(n.level)}（${span(n.from, n.to)}）：${n.text}`).join('\n');
+  return `【${who}的长期记忆】\n` + list.filter(n => keep.has(n.id)).map(n => `- ${span(n.from, n.to)}：${n.text}`).join('\n');
 }
 
 // ---------- 想起来的旧聊天: local search (BM25) and embedding similarity ----------
@@ -254,7 +254,7 @@ export function recall(pieces, query, {limit = 3, vectors = null} = {}) {
     .sort((a, b) => b.score - a.score || b.from - a.from).slice(0, limit).sort((a, b) => a.from - b.from);
 }
 export function recallText(found, {who = ''} = {}) {
-  return found.length ? `【想起来的旧聊天】（和现在聊的有关的${who}更早的原话，只作参考）\n` + found.map(p => p.text).join('\n……\n') : '';
+  return found.length ? `【旧聊天${who ? '·' + who : ''}】\n` + found.map(p => p.text).join('\n……\n') : '';
 }
 
 /** 把一组条目（{text, at}）切成片段，给向量召回用：每片 {id, from, to, text}。 */
