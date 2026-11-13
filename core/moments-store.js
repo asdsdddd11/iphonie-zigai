@@ -22,6 +22,7 @@ function cleanPost(p, id, at) {
   const out = {id, author, text: said, at, source: ['manual', 'auto', 'me', 'chat'].includes(p.source) ? p.source : 'manual', likes: [], comments: []};
   if (p.photoId) out.photoId = clip(p.photoId, 512);
   if (p.imageTags) out.imageTags = clip(p.imageTags, 600);
+  if (p.imageDesc) out.imageDesc = clip(p.imageDesc, 600);
   if (versionList(p.imageVersions).length) out.imageVersions = versionList(p.imageVersions);
   if (['waiting', 'done', 'failed'].includes(p.imageState)) out.imageState = p.imageState;
   if (p.imageNote) out.imageNote = clip(p.imageNote, 200);
@@ -133,11 +134,12 @@ export class MomentStore {
     return {post, comment: added};
   }
   async removeComment(id, commentId) { return this.#change(id, row => { row.comments = row.comments.filter(c => c.id !== commentId); }); }
-  /** The picture of a post: {photoId, imageState, imageNote, imageTags, imageVersions}. */
-  async setImage(id, {photoId, imageState, imageNote, imageTags, imageVersions} = {}) {
+  /** The picture of a post: {photoId, imageState, imageNote, imageTags, imageDesc, imageVersions}. */
+  async setImage(id, {photoId, imageState, imageNote, imageTags, imageDesc, imageVersions} = {}) {
     return this.#change(id, row => {
       if (photoId !== undefined) { if (photoId) row.photoId = clip(photoId, 512); else delete row.photoId; }
       if (imageTags !== undefined && String(imageTags).trim()) row.imageTags = clip(String(imageTags).trim(), 600);
+      if (imageDesc !== undefined && String(imageDesc).trim()) row.imageDesc = clip(String(imageDesc).trim(), 600);
       if (imageVersions !== undefined) { const list = versionList(imageVersions); if (list.length) row.imageVersions = list; else delete row.imageVersions; }
       if (imageState !== undefined) row.imageState = imageState;
       if (imageNote !== undefined) { if (imageNote) row.imageNote = clip(imageNote, 200); else delete row.imageNote; }

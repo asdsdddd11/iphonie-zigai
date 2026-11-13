@@ -6,7 +6,7 @@ import {buildPeekRequest, parsePeek, peekId, mergePeek} from './core/peek.js';
 import {storyLines, pickCrowd, activityNames} from './core/moments.js';
 import {inSpace, activeChatPreset, cleanTagged} from './core/chat.js';
 import {worldInfoFor, loreOptions} from './host-lore.js';
-import {pictureInputs, sizeFor, photoPicture} from './core/draw.js';
+import {pictureInputs, sizeFor, photoPicture, tagTextRequest, tagTextAnswer} from './core/draw.js';
 import {HUNT_PROMPT, SHOW_PROMPT, parseHunt, parseShow, parseHuntYaml, huntToTarget, huntToTargetYaml, huntToFeed, huntToFeedYaml, stageOf} from './core/root.js';
 
 const PEOPLE = 12;
@@ -135,13 +135,20 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     const key = backend.spaceKey(), snap = (await backend.apps.get(peekId(name, key))) || (key ? await backend.apps.get(peekId(name)) : null), id = snap?.id;
     const wall = index === 'wallpaper', pick = doc => wall ? doc.wallpaper : doc.photos?.[index], photo = snap && pick(snap);
     if (!photo) throw Error(wall ? '没有壁纸，「再看一次」后就有了' : '这张照片已经不在了');
-    if (String(tags).trim() && !photo.tags) throw Error((wall ? '壁纸' : '这张照片') + '没有画图用的描述，「再看一次」后就有了');
-    if (!photo.tags && !String(tags).trim()) throw Error((wall ? '壁纸' : '这张照片') + '没有画图用的描述，「再看一次」后就有了');
+    if (!photo.tags && !photo.text && !String(tags).trim()) throw Error((wall ? '壁纸' : '这张照片') + '没有画图用的描述，「再看一次」后就有了');
     if (!backend.drawReady()) throw Error(backend.drawMissing() + '，相册只能看文字');
     const set = patch => backend.appsMutate('peek', () => backend.apps.change(id, doc => { const target = pick(doc); Object.assign(target, patch); for (const k of Object.keys(patch)) if (patch[k] === '') delete target[k]; }));
     // 改提示词再画: the tags they wrote replace the saved ones, and the next draw uses them.
     const clean = String(tags).trim();
     if (clean) { await set({tags: clean.slice(0, 600)}); photo.tags = clean.slice(0, 600); }
+    // B 模式：只有中文描述，画之前先转成英文 tag，存回去下次不再转
+    if (!photo.tags && photo.text) {
+      if (!allowPaid && backend.drawQuote?.()?.free === false) throw Object.assign(Error('要花钱'), {code: 'PAID'});
+      const made = tagTextAnswer(await backend.generateText(context(), {use: 'picture', prompt: tagTextRequest(settings(), photo.text, 'tags'), plainText: true, trimNames: false, responseLength: 1500})).replace(/\s+/g, ' ').trim().slice(0, 6000);
+      if (!made) throw Error('没把照片的描述写成画图用的 tag，再点一次试试');
+      photo.tags = made;
+      await set({tags: made});
+    }
     // The saved looks of who the photo shows: the people its description names, else the owner (a selfie).
     const names = [...settings().routes.map(r => r.name), userName()], picture = photoPicture(settings(), {text: photo.text, tags: photo.tags, owner: name, names});
     try {
@@ -181,9 +188,17 @@ export function createAppsHost({context, settings, backend, memory = null}) {
     const set = patch => backend.appsMutate('forum', () => backend.apps.change(postId, post => Object.assign(post, patch)));
     if (String(tags).trim()) await set({imageTags: String(tags).trim()});
     const post = await backend.apps.get(postId);
-    if (!post?.imageTags) throw Error('这条帖子没有配图描述');
+    if (!post || !(post.imageTags || post.imageDesc)) throw Error('这条帖子没有配图描述');
     if (!backend.drawReady()) { await set({imageState: 'failed', imageNote: backend.drawMissing()}); return null; }
     try {
+      // B 模式：只有中文描述，画之前先转成英文 tag，存回去下次不再转
+      if (!post.imageTags && post.imageDesc) {
+        if (!allowPaid && backend.drawQuote?.()?.free === false) throw Object.assign(Error('要花钱'), {code: 'PAID'});
+        const made = tagTextAnswer(await backend.generateText(context(), {use: 'picture', prompt: tagTextRequest(settings(), post.imageDesc, 'tags'), plainText: true, trimNames: false, responseLength: 1500})).replace(/\s+/g, ' ').trim().slice(0, 6000);
+        if (!made) throw Error('没把配图描述写成画图用的 tag，再点一次试试');
+        post.imageTags = made;
+        await set({imageTags: made});
+      }
       const names = [...settings().routes.map(r => r.name), userName()];
       const input = pictureInputs(settings(), photoPicture(settings(), {text: post.text, tags: post.imageTags, owner: post.author, names}), '');
       await set({imageState: 'waiting', imageNote: ''});

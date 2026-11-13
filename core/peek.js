@@ -152,7 +152,7 @@ export function parsePeek(reply, {name, user = '我'} = {}) {
 /** The id of a person's snapshot: one per person (per card, with 分区 on). */
 export const peekId = (name, space = '') => 'peek:' + (space ? space + ':' : '') + name;
 /** A picture as it is stored: its description, (when it can be drawn) its tags, the drawn picture, every version drawn of
- *  it, and how drawing went. */
+ *  it, and how drawing went. B 模式：描述来了、tag 还没有也能存，画的时候再转。 */
 function cleanPicture(x) {
   const photo = {text: clip(x.text, 200).trim(), tags: clip(x.tags, 600).trim()};
   if (x.photoId) photo.photoId = clip(x.photoId, 512);

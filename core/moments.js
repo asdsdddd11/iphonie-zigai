@@ -82,10 +82,15 @@ export function parseMoments(reply, {names, user = '我', mode = 'posts'}) {
       const said = clean(s[3]).slice(0, MOMENTS_LIMITS.text);
       if (!said) continue;
       if (out.posts.length >= MOMENTS_LIMITS.perRefresh) break;
-      post = {author, text: said, imageTags: '', likes: [], comments: []};
+      post = {author, text: said, imageTags: '', imageDesc: '', likes: [], comments: []};
       out.posts.push(post);
     } else if (kind === '配图') {
-      if (post && !post.imageTags) post.imageTags = clean(rest).replace(/[一-鿿]+/g, ' ').split(/[,，]/).map(t => t.replace(/\s+/g, ' ').trim()).filter(Boolean).join(', ').slice(0, 600);
+      if (post && !post.imageTags && !post.imageDesc) {
+        const raw = clean(rest);
+        // 中文画面描述（B 模式：画的时候再转成 tag）；纯英文按旧格式直接当 tag
+        if (/[\u4e00-\u9fa5]/.test(raw)) post.imageDesc = raw.slice(0, 600);
+        else post.imageTags = raw.replace(/[一-鿿]+/g, ' ').split(/[,，]/).map(t => t.replace(/\s+/g, ' ').trim()).filter(Boolean).join(', ').slice(0, 600);
+      }
     } else if (kind === '赞' || kind === '点赞') {
       const list = holder().likes;
       for (const name of rest.split(/[、,，\s]+/)) { const n = known(name); if (n && !list.includes(n)) list.push(n); }

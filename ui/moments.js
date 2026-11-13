@@ -50,7 +50,7 @@ export function momentsPanel(ctx, {v, frame, me, visible}) {
     // A picture seen before comes with the page, in the place it had: without it the page would be shorter for a moment and lose where it was.
     const size = sizes.get(p.photoId), url = shown.get(p.photoId);
     if (p.photoId) return `<button type="button" class="moment-photo" data-action="view-photo" data-id="${esc(p.id)}"${size ? ` style="${size}"` : ''} aria-label="查看配图"><img data-photo="${esc(p.photoId)}"${url ? ` src="${esc(url)}"` : ''} alt="${esc(nameOf(p.author))} 的配图"></button>`;
-    if (!p.imageTags) return '';
+    if (!p.imageTags && !p.imageDesc) return '';
     if (p.imageState === 'waiting') return '<p class="moment-note">配图正在画……</p>';
     // Without a drawing engine set up there is nothing to retry; once it is the note turns into a button again.
     if (p.imageState === 'failed' && /密钥/.test(p.imageNote || '') && !api.drawReady()) return `<p class="moment-note">${esc(p.imageNote)}，这张配图没有画</p>`;
@@ -216,7 +216,7 @@ export function momentsPanel(ctx, {v, frame, me, visible}) {
       if (photo) versions.push({photoId, photo, src: await urlFor(photoId)});
     }
     if (v.disposed || !versions.length) return;
-    const name = `动态 · ${nameOf(post.author)}`, drawn = !!post.imageTags && post.author !== 'me';
+    const name = `动态 · ${nameOf(post.author)}`, drawn = !!(post.imageTags || post.imageDesc) && post.author !== 'me';
     const current = async () => { const now = await api.getMoment(post.id); if (!now) throw Error('这条动态已经不在了'); return now; };
     const redraw = async tags => {
       const paid = api.drawQuote?.().free === false, ask = api.paidPrompt?.();

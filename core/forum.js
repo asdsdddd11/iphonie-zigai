@@ -103,7 +103,12 @@ export function parseForum(reply, {user = '我', mode = 'posts', handles = {}} =
       post = {author, title, text, imageTags: '', replies: []};
       out.posts.push(post);
     } else if (kind === '配图') {
-      if (post && !post.imageTags) post.imageTags = clean(rest).replace(/[一-鿿]+/g, ' ').split(/[,，]/).map(t => t.replace(/\s+/g, ' ').trim()).filter(Boolean).join(', ').slice(0, 600);
+      if (post && !post.imageTags && !post.imageDesc) {
+        const raw = clean(rest);
+        // 中文画面描述（B 模式：画的时候再转成 tag）；纯英文按旧格式直接当 tag
+        if (/[\u4e00-\u9fa5]/.test(raw)) post.imageDesc = raw.slice(0, 600);
+        else post.imageTags = raw.replace(/[一-鿿]+/g, ' ').split(/[,，]/).map(t => t.replace(/\s+/g, ' ').trim()).filter(Boolean).join(', ').slice(0, 600);
+      }
     } else {
       const s = rest.match(SAID), from = s && real(person(s[1]));
       if (!from || isUser(from)) continue;
@@ -128,7 +133,7 @@ export function cleanPost(p, id, at, newId) {
   const replies = (Array.isArray(p.replies) ? p.replies : []).slice(-FORUM_LIMITS.replies).map((r, i) => cleanReply(r, r?.id || newId(), Number.isFinite(r?.at) ? r.at : at + i + 1));
   return {id, kind: 'forum', author, title, text, at, source: ['auto', 'me'].includes(p.source) ? p.source : 'auto',
     likes: Math.max(0, Math.round(Number(p.likes) || 0)), liked: p.liked === true, heat: Math.max(0, Math.round(Number(p.heat) || 0)), replies,
-    imageTags: clip(p?.imageTags, 600).trim(), photoId: clip(p?.photoId, 512),
+    imageTags: clip(p?.imageTags, 600).trim(), imageDesc: clip(p?.imageDesc, 600).trim(), photoId: clip(p?.photoId, 512),
     imageState: ['waiting', 'done', 'failed'].includes(p?.imageState) ? p.imageState : '',
     imageVersions: (Array.isArray(p?.imageVersions) ? p.imageVersions : []).map(x => clip(x, 512)).filter(Boolean).slice(-10),
     ...(p.space ? {space: clip(p.space, 300)} : {}), ...(p.save ? {save: clip(p.save, 400)} : {})};

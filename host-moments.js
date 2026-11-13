@@ -4,7 +4,7 @@
 import {buildMomentsRequest, parseMoments, storyLines, pickCrowd, activityNames, MOMENTS_LIMITS} from './core/moments.js';
 import {inSpace, activeChatPreset, cleanTagged} from './core/chat.js';
 import {worldInfoFor, loreOptions} from './host-lore.js';
-import {pictureInputs, photoPicture} from './core/draw.js';
+import {pictureInputs, photoPicture, tagTextRequest, tagTextAnswer} from './core/draw.js';
 
 export function createMomentsHost({context, settings, backend, notice, memory = null}) {
   // 记忆: what each of them talked about with the user in private (written-up layers only).
@@ -109,9 +109,17 @@ export function createMomentsHost({context, settings, backend, notice, memory = 
     const set = patch => backend.momentsMutate(() => backend.moments.setImage(postId, patch));
     if (String(tags).trim()) await set({imageTags: String(tags).trim()});
     const post = await backend.moments.get(postId);
-    if (!post?.imageTags) throw Error('这条动态没有配图描述');
+    if (!post || !(post.imageTags || post.imageDesc)) throw Error('这条动态没有配图描述');
     if (!backend.drawReady()) { await set({imageState: 'failed', imageNote: backend.drawMissing()}); return null; }
     try {
+      // B 模式：只有中文描述，画之前先转成英文 tag，存回去下次不再转
+      if (!post.imageTags && post.imageDesc) {
+        if (!allowPaid && backend.drawQuote?.()?.free === false) throw Object.assign(Error('要花钱'), {code: 'PAID'});
+        const made = tagTextAnswer(await backend.generateText(context(), {use: 'picture', prompt: tagTextRequest(settings(), post.imageDesc, 'tags'), plainText: true, trimNames: false, responseLength: 1500})).replace(/\s+/g, ' ').trim().slice(0, 6000);
+        if (!made) throw Error('没把配图描述写成画图用的 tag，再点一次试试');
+        post.imageTags = made;
+        await set({imageTags: made});
+      }
       // The saved looks of who the picture shows: the people the post names, else the poster (a selfie).
       const names = [...settings().routes.map(r => r.name), userName()];
       const input = pictureInputs(settings(), photoPicture(settings(), {text: post.text, tags: post.imageTags, owner: post.author, names}), '');
