@@ -1030,12 +1030,16 @@ const LOOK_TAGS = /\b(?:hair|eyes|bangs|ponytail|twintails|braids?|ahoge|sideloc
 /**
  * A phone photo's words and people for pictureInputs: the people's saved looks go in, so the looks a model made up for
  * the photo leave its tags; people counted when the model did not, from the looks themselves. settings: for the looks.
+ * When someone in the picture has no saved look, the tags keep the hair and eye colours the model wrote for them —
+ * dropping those would leave that person a blank face.
  */
 export function photoPicture(settings, {text = '', tags = '', owner = '', names = []}) {
   const drawn = photoTags({text, tags, owner, names}), cast = photoCast({text, tags: drawn, owner, names}), roles = drawable(settings);
-  const looks = cast.map(n => roleNamed(roles, n)?.appearance || '').filter(Boolean);
+  const known = cast.filter(n => roleNamed(roles, n)?.appearance), looks = known.map(n => roleNamed(roles, n).appearance);
   if (!looks.length) return {prompt: drawn, characters: cast};
-  let list = drawn.split(',').map(t => t.trim()).filter(t => t && !LOOK_TAGS.test(t));
+  // 有人没有存好的外貌：发色瞳色留着，不然那个人会变成路人脸
+  const mixed = known.length < cast.length;
+  let list = drawn.split(',').map(t => t.trim()).filter(t => t && (mixed || !LOOK_TAGS.test(t)));
   if (!/\b\d+\+?\s*(?:girl|boy|other)s?\b/i.test(drawn)) {
     const count = word => looks.filter(l => new RegExp(`\\b(?:1\\s*)?${word}\\b`, 'i').test(l)).length, said = (n, word) => n ? [`${n}${word}${n > 1 ? 's' : ''}`] : [];
     list = [...said(count('girl'), 'girl'), ...said(count('boy'), 'boy'), ...list.filter(t => !/^(?:girls?|boys?)$/i.test(t))];
