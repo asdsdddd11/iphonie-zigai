@@ -181,7 +181,7 @@ export function createAppsHost({context, settings, backend, memory = null}) {
 
   // ---------- 论坛配图（和朋友圈一样） ----------
   function forumDrawNew(posts) {
-    if (settings().moments.images) for (const post of posts || []) if (post.imageTags && !post.photoId) forumDrawImage(post.id).catch(() => {});
+    if (settings().moments.images) for (const post of posts || []) if ((post.imageTags || post.imageDesc) && !post.photoId) forumDrawImage(post.id).catch(() => {});
   }
   /** Draws a post's picture. Without allowPaid, only when the free tier covers it. */
   async function forumDrawImage(postId, {allowPaid = false, tags = ''} = {}) {

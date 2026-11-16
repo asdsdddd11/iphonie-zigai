@@ -74,7 +74,7 @@ export function forumApp(ctx) {
       } catch {}
     }
     if (v.disposed || !versions.length) return;
-    const name = '论坛 · ' + (nameOf(p.author) || ''), drawn = !!p.imageTags && p.author !== 'me';
+    const name = '论坛 · ' + (nameOf(p.author) || ''), drawn = !!(p.imageTags || p.imageDesc) && p.author !== 'me';
     const current = async () => { const now = await api.getForumPost?.(p.id); if (!now) throw Error('这条帖子已经不在了'); return now; };
     const redraw = async tags => {
       const paid = api.drawQuote?.().free === false, ask = api.paidPrompt?.();

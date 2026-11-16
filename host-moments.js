@@ -64,7 +64,7 @@ export function createMomentsHost({context, settings, backend, notice, memory = 
       const request = buildMomentsRequest({prompts: settings().promptRules, preset, earlier: memory?.storyMemory() || '', mode: 'posts', people: crowd, story, user, userPersona: userPersona(), recent, images: s.moments.images, memory: await remembered(crowd.map(p => p.name)), lore: await lore(preset, crowd, story, recent.map(p => `${p.author}: ${p.text}`))});
       const found = parseMoments(await ask(ctx, request), {names, user, mode: 'posts'});
       if (!found.posts.length) throw Error('这次没有收到新动态，可以再刷新一次');
-      const posts = await backend.momentsMutate(() => backend.moments.add(found.posts.map(p => ({...p, space, ...(save ? {save} : {}), source: auto ? 'auto' : 'manual', imageState: p.imageTags && s.moments.images ? 'waiting' : undefined}))));
+      const posts = await backend.momentsMutate(() => backend.moments.add(found.posts.map(p => ({...p, space, ...(save ? {save} : {}), source: auto ? 'auto' : 'manual', imageState: (p.imageTags || p.imageDesc) && s.moments.images ? 'waiting' : undefined}))));
       drawNew(posts);
       // 生活记忆：朋友圈刷新后，把每个人的动态压缩进生活摘要。
       try { for (const author of new Set(posts.map(p => p.author))) if (author && author !== 'me') memory?.tidyLife?.(author).catch(() => {}); } catch {}
@@ -73,7 +73,7 @@ export function createMomentsHost({context, settings, backend, notice, memory = 
   }
   /** The pictures of new posts (from a refresh, or posted while chatting), when 动态配图 is on. */
   function drawNew(posts) {
-    if (settings().moments.images) for (const post of posts || []) if (post.imageTags && !post.photoId) drawImage(post.id).catch(() => {});
+    if (settings().moments.images) for (const post of posts || []) if ((post.imageTags || post.imageDesc) && !post.photoId) drawImage(post.id).catch(() => {});
   }
   /** Friends react to the user's new post. */
   function react(postId) {

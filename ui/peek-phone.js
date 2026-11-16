@@ -142,7 +142,8 @@ export function peekPhone(ctx, {host, snap, canDraw, draw, photo, view, play = (
     return p.photoId ? `<img data-photo="${esc(p.photoId)}" alt="${esc(p.text)}">` : `<span class="pp-blank" style="background:${tile(i, p.text)}">${UI.image}<em>${esc(clipText(p.text, 24))}</em></span>`;
   }
   function photosPage() {
-    const list = album(), drawable = canDraw() && list.some(p => p.tags && !p.photoId && p.state !== 'waiting');
+    const list = album(), can = p => !!(p.tags || p.text);   // B 模式：只有中文描述也能画
+    const drawable = canDraw() && list.some(p => can(p) && !p.photoId && p.state !== 'waiting');
     return `<div class="pp-app pp-photos">${bar('相册', '', drawable ? '<button type="button" class="pp-link" data-pp="draw-all">全部画出来</button>' : '')}
       <div class="pp-body"><p class="pp-big">最近项目<small>${list.length} 张</small></p>
       ${list.length ? `<div class="pp-grid3">${list.map((p, i) => `<button type="button" class="pp-shot" data-pp="photo" data-index="${i}" aria-label="${esc(p.text)}">${picture(p, i)}${p.key === 'wallpaper' ? '<small>壁纸</small>' : ''}${p.state === 'waiting' ? '<i class="pp-wait"></i>' : ''}</button>`).join('')}</div>` : '<p class="pp-empty">相册里没有照片</p>'}</div></div>`;
@@ -150,7 +151,7 @@ export function peekPhone(ctx, {host, snap, canDraw, draw, photo, view, play = (
   function photoPage() {
     const list = album(), p = list[item];
     if (!p) { page = 'photos'; return photosPage(); }
-    const action = !canDraw() || !p.tags || p.photoId ? '' : p.state === 'waiting' ? '<p class="pp-note">正在画……</p>'
+    const action = !canDraw() || !(p.tags || p.text) || p.photoId ? '' : p.state === 'waiting' ? '<p class="pp-note">正在画……</p>'
       : `<button type="button" class="pp-pill" data-pp="draw" data-key="${p.key}">${esc(p.state === 'failed' ? (p.note || '没画出来') + ' · 重画' : '画出来')}</button>`;
     return `<div class="pp-app pp-viewer">${bar(p.key === 'wallpaper' ? '壁纸' : `${item + 1} / ${list.length}`, '相册')}
       <div class="pp-body">${p.photoId ? `<button type="button" class="pp-full" data-pp="zoom"><img data-photo="${esc(p.photoId)}" data-key="${esc(String(p.key))}" alt="${esc(p.text)}"></button>` : `<div class="pp-full pp-said" style="background:${tile(item, p.text)}"><p>${esc(p.text)}</p></div>`}
@@ -230,7 +231,7 @@ export function peekPhone(ctx, {host, snap, canDraw, draw, photo, view, play = (
       case 'note': go('note', index); break;
       case 'zoom': { const img = el.querySelector('img'); if (img?.src) view(img); break; }
       case 'draw': await draw([el.dataset.key === 'wallpaper' ? 'wallpaper' : Number(el.dataset.key)]); break;
-      case 'draw-all': await draw(album().filter(p => p.tags && !p.photoId && p.state !== 'waiting').map(p => p.key)); break;
+      case 'draw-all': await draw(album().filter(p => (p.tags || p.text) && !p.photoId && p.state !== 'waiting').map(p => p.key)); break;
       case 'song': { const song = snap.songs?.[index]; if (song) play(song); break; }
       // The camera: a flash for the shutter, the view turned round for the other lens. Nothing is taken.
       case 'snap': { const finder = layer.querySelector('.pp-finder'); finder?.classList.remove('pp-flash'); void finder?.offsetWidth; finder?.classList.add('pp-flash'); break; }

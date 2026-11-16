@@ -894,7 +894,7 @@ export function chatApp(ctx) {
       gallery: {items: versions.map(v => ({src: v.src, alt: message.text || '', info: v.photo.info})), index: Math.max(0, versions.findIndex(v => v.photoId === message.photoId)),
         onIndex: i => api.updateChatMessage(id, mid, {photoId: versions[i].photoId}).catch(error => ctx.notify(error.message))},
       actions: [heart, downloadAction(ctx.doc, i => ({source: versions[i].photo.blob, name: versions[i].photo.name}), ctx.notify),
-        ...(message.imageTags && api.chatDrawPhoto ? [
+        ...((message.imageTags || message.text) && api.chatDrawPhoto ? [
           {label: '重画', run: safe(() => draw())},
           {label: '改提示词再画', run: safe(rewrite)},
           {label: '在绘图中打开', run: safe(async i => { const m = await current(); if (m) ctx.openDraw({...request(m), seed: Number(versions[i].photo.info?.find(row => row[0] === '种子')?.[1])}); })}
