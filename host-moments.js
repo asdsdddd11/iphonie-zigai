@@ -64,8 +64,8 @@ export function createMomentsHost({context, settings, backend, notice, memory = 
       const request = buildMomentsRequest({prompts: settings().promptRules, preset, earlier: memory?.storyMemory() || '', mode: 'posts', people: crowd, story, user, userPersona: userPersona(), recent, images: s.moments.images, memory: await remembered(crowd.map(p => p.name)), lore: await lore(preset, crowd, story, recent.map(p => `${p.author}: ${p.text}`))});
       const found = parseMoments(await ask(ctx, request), {names, user, mode: 'posts'});
       if (!found.posts.length) throw Error('这次没有收到新动态，可以再刷新一次');
-      const posts = await backend.momentsMutate(() => backend.moments.add(found.posts.map(p => ({...p, space, ...(save ? {save} : {}), source: auto ? 'auto' : 'manual', imageState: (p.imageTags || p.imageDesc) && s.moments.images ? 'waiting' : undefined}))));
-      drawNew(posts);
+      const posts = await backend.momentsMutate(() => backend.moments.add(found.posts.map(p => ({...p, space, ...(save ? {save} : {}), source: auto ? 'auto' : 'manual'}))));
+      // 配图不自动画：用户在动态上点「画出来」才画。
       // 生活记忆：朋友圈刷新后，把每个人的动态压缩进生活摘要。
       try { for (const author of new Set(posts.map(p => p.author))) if (author && author !== 'me') memory?.tidyLife?.(author).catch(() => {}); } catch {}
       return posts;

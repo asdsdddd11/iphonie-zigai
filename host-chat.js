@@ -179,7 +179,7 @@ export function createChatHost({context, settings, backend, notice, memory = nul
       const saved = await backend.chatMutate(threadId, () => settle(threadId, items, last, {board: !nudge}));
       memory?.after(threadId);
       // The new photos with tags are drawn when the free tier covers them; the others wait for 画出来.
-      for (const m of saved?.messages || []) if (!before.has(m.id) && m.kind === 'photo' && !m.photoId && (m.imageTags || backend.drawReady?.())) drawPhoto(threadId, m.id).catch(() => {});
+      // 照片不自动画：用户在消息上点「画出来」才画。
       // Asked for and come while the user is elsewhere: the phone says so (its note opens the chat); 主动找你 says it itself.
       const fresh = (saved?.messages || []).filter(m => !before.has(m.id) && m.from !== 'me' && !['system', 'notice', 'recall'].includes(m.kind));
       if (!nudge && fresh.length) backend.emit('chat', {threadId, incoming: {from: fresh.at(-1).from, text: fresh.at(-1).text || '', kind: fresh.at(-1).kind, count: fresh.length}});
@@ -605,7 +605,7 @@ export function createChatHost({context, settings, backend, notice, memory = nul
     if (from) items = items.map(item => ({...item, story: from.story, storyVer: from.ver}));
     const saved = await backend.chatMutate(threadId, () => settle(threadId, items));
     const fresh = (saved?.messages || []).filter(m => !before.has(m.id) && m.from !== 'me');
-    for (const m of fresh) if (m.kind === 'photo' && !m.photoId && (m.imageTags || backend.drawReady?.())) drawPhoto(threadId, m.id).catch(() => {});
+    // 照片不自动画：用户在消息上点「画出来」才画。
     const last = fresh.at(-1);
     if (last) backend.emit('chat', {threadId, incoming: {from: last.from, text: last.text || '', kind: last.kind, count: fresh.length}});
     return fresh.length;

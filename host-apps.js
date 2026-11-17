@@ -64,7 +64,7 @@ export function createAppsHost({context, settings, backend, memory = null}) {
       if (!found.posts.length) throw Error('这次没有刷出新帖子，可以再刷新一次');
       if (found.hot.length) await backend.setForumHot(found.hot, hotId);
       const added = await backend.addForumPosts(found.posts, {space, save});
-      forumDrawNew(added);
+      // 配图不自动画：用户在帖子上点「画出来」才画。
       // 生活记忆：论坛刷新后，只把已有角色的发帖压缩进生活摘要（路人不是角色，跳过，别浪费 token）。
       try { for (const author of new Set(added.map(p => p.author))) if (author && author !== 'me' && everyone.some(c => c.name === author)) memory?.tidyLife?.(author).catch(() => {}); } catch {}
       return added;
