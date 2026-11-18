@@ -24,8 +24,8 @@ export const TEXT_PRESET_ID = /^[\w-]{1,64}$/;
  * memory, turning a picture into drawing tags, writing a song…). The story itself and the apps that make content are
  * not here: those are what the main connection is for.
  */
-export const AUX_USES = Object.freeze(['memory', 'picture', 'song', 'sound', 'voices', 'wardrobe', 'generator', 'book', 'assistant', 'other']);
-export const AUX_NAMES = Object.freeze({memory: '记忆整理', picture: '配图转 tag · 绘图提示词', song: '写歌', sound: '音效描述', voices: '挑音色', wardrobe: '衣柜', generator: '开场白 · 走向 · 小剧场', book: '绘本', assistant: '助手', other: '其他零碎请求'});
+export const AUX_USES = Object.freeze(['memory', 'picture', 'voicetag', 'song', 'sound', 'voices', 'wardrobe', 'generator', 'book', 'assistant', 'other']);
+export const AUX_NAMES = Object.freeze({memory: '记忆整理', picture: '配图转 tag · 绘图提示词', voicetag: '语音标签（正文写完后补）', song: '写歌', sound: '音效描述', voices: '挑音色', wardrobe: '衣柜', generator: '开场白 · 走向 · 小剧场', book: '绘本', assistant: '助手', other: '其他零碎请求'});
 const count = (value, [min, max], fallback, round = true) => { const n = round ? Math.round(Number(value)) : Number(value); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback; };
 function normalizePreset(value, index) {
   const base = defaultTextPreset();

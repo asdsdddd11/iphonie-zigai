@@ -77,6 +77,45 @@ async function prepareReply(id,picks=Promise.resolve()){if(!active||settings.gen
 /** What a character said in the story lately (their lines' translations), for picking their voice. */
 function saidBy(name){const out=[];for(const m of (context()?.chat||[]).slice(-40)){if(!m||m.is_user||m.is_system)continue;for(const line of parsed(String(m.mes||''))?.lines||[])if(line.role===name)out.push(line.translation||line.text);}return out.slice(-8);}
 // Without voice tags a role is still met when the story names it (names of 2+ characters), also one met in other cards.
+/** b 里能不能按顺序找出 a 的每个字（= 没有删字，只多加了东西）。 */
+function isSubsequence(a,b){let i=0;for(const ch of b){if(ch===a[i])i++;}return i===a.length;}
+/**
+ * 语音标签后处理：正文由主接口写完以后，把"每句台词加什么情绪标签"交给辅助接口再跑一次。
+ * 只在开了语音、开了辅助接口、且勾了「语音标签」时做。改坏了就整段放弃，保留原文。
+ */
+async function voiceTagPass(id){
+  if(!active||settings?.general?.voiceEnabled!==true)return;
+  const aux=settings?.text?.aux;
+  if(!aux?.enabled||!(aux.uses||[]).includes('voicetag'))return;
+  const ctx=context(),msg=ctx?.chat?.[id];
+  if(!msg||msg.is_user||msg.is_system)return;
+  const text=String(msg.mes||'').trim();
+  if(!text||text.length>8000)return;
+  // 这一段里能用的标签，从当前语音引擎的规则里取
+  const samples=[...new Set(String(modelRules(seen())||'').match(/\[[^\]]{1,8}\]|\([^)]{1,8}\)/g)||[])].slice(0,40);
+  if(!samples.length)return;
+  if(samples.some(t=>text.includes(t)))return;   // 已经有标签了，不再补
+  const prompt=[
+    {role:'system',content:`你是台词标注器。把下面这段正文里每一句对白，在它前面加上语音标签，**别的一个字都不要改**。
+
+标签只能用这些：${samples.join('、')}
+
+规则：
+- 只加标签，不改字、不删字、不换行、不改标点
+- 没有明显情绪的台词不加
+- 一段对白只加一个标签，加在开引号前面
+- 原样返回整段正文，前后不要任何解释，不要放进代码块`},
+    {role:'user',content:text},
+  ];
+  let tagged='';
+  try{tagged=String(await backend.generateText(ctx,{use:'voicetag',prompt,plainText:true,trimNames:false,responseLength:Math.min(8000,text.length*2)})||'').trim();}catch{return;}
+  if(!tagged)return;
+  // 三道保护：长度差太大、一个标签都没加、原文不是它的子序列 → 整段放弃
+  if(Math.abs(tagged.length-text.length)>text.length*0.4)return;
+  if(!samples.some(t=>tagged.includes(t)))return;
+  if(!isSubsequence(text.replace(/\s/g,''),tagged.replace(/\s/g,'')))return;
+  try{await ctx?.updateMessageBlock?.(id,{mes:tagged});}catch{}
+}
 function tagSpeakers(messages){if(!active)return;const open=openSpace(),key=open.save?`${open.key}#${open.save}`:open.key,names=new Set();if(!key)return;const unmet=(seen().routes||[]).filter(r=>!(Array.isArray(r.cards)&&r.cards.includes(key))&&r.name?.length>=2&&!isPlaceholderRole(r.name)).map(r=>r.name);for(const m of messages){if(!m||m.is_user||m.is_system)continue;const text=String(m.mes||'');for(const line of parsed(text)?.lines||[])if(line.role)names.add(line.role);for(const name of unmet)if(text.includes(name))names.add(name);}try{backend.tagRoles([...names],key);}catch{}}
 /** A chat was opened: the phone follows the card, and the card's story speakers become its contacts. */
 function spaceChanged(){if(!active||!backend)return;memoryHost?.refreshStory();try{backend.setSpace(openSpace());tagSpeakers((context()?.chat||[]).slice(-200));}catch{}}
@@ -550,7 +589,7 @@ async function enableInternal(){if(active)return;const ctx=context();// generate
  hooked=true;}
  const subscribe=(name,fn)=>{if(!name)return;ctx.eventSource.on(name,fn);listeners.push([ctx.eventSource,name,fn]);};subscribe(ctx.eventTypes.GENERATION_AFTER_COMMANDS,async(type,options,dryRun)=>{try{await memoryHost?.storyReady();}catch{}try{memoryHost?.tidyStory?.().catch(()=>{});}catch{}inject(type,options,dryRun);});
  // Each new story reply counts toward automatic 朋友圈 posts (off unless the user turns it on).
- subscribe(ctx.eventTypes.MESSAGE_RECEIVED,id=>{chats?.storyReplied(id??(context()?.chat||[]).length-1).catch(()=>{});if(!vnHost?.showing)soundHost?.received(id??(context()?.chat||[]).length-1);tagSpeakers((context()?.chat||[]).slice(-1));prepareReply(id??(context()?.chat||[]).length-1,voiceAhead((context()?.chat||[]).slice(-1)));momentsHost?.storyReplied();callHost?.storyReplied();wardrobeHost?.storyReplied(id??(context()?.chat||[]).length-1).catch(()=>{});});subscribe(ctx.eventTypes.CHAT_CHANGED,spaceChanged);spaceChanged();subscribe(ctx.eventTypes.CHAT_CHANGED,()=>soundHost?.chatChanged());soundHost.chatChanged();for(const event of ['MESSAGE_SWIPED','MESSAGE_EDITED','MESSAGE_DELETED'])subscribe(ctx.eventTypes[event],id=>soundHost?.messageChanged(event==='MESSAGE_DELETED'?undefined:id));
+ subscribe(ctx.eventTypes.MESSAGE_RECEIVED,id=>{chats?.storyReplied(id??(context()?.chat||[]).length-1).catch(()=>{});if(!vnHost?.showing)soundHost?.received(id??(context()?.chat||[]).length-1);tagSpeakers((context()?.chat||[]).slice(-1));voiceTagPass(id??(context()?.chat||[]).length-1).catch(()=>{});prepareReply(id??(context()?.chat||[]).length-1,voiceAhead((context()?.chat||[]).slice(-1)));momentsHost?.storyReplied();callHost?.storyReplied();wardrobeHost?.storyReplied(id??(context()?.chat||[]).length-1).catch(()=>{});});subscribe(ctx.eventTypes.CHAT_CHANGED,spaceChanged);spaceChanged();subscribe(ctx.eventTypes.CHAT_CHANGED,()=>soundHost?.chatChanged());soundHost.chatChanged();for(const event of ['MESSAGE_SWIPED','MESSAGE_EDITED','MESSAGE_DELETED'])subscribe(ctx.eventTypes[event],id=>soundHost?.messageChanged(event==='MESSAGE_DELETED'?undefined:id));
  // A message changed: what plays from a reply whose lines changed stops (the player's own check would at the next line);
  // an edit that left them (another plugin writing into the reply) and what plays from elsewhere (a call, a favourite) go on.
  for(const event of ['CHAT_CHANGED','MESSAGE_SWIPED','MESSAGE_EDITED','MESSAGE_DELETED'])subscribe(ctx.eventTypes[event],()=>{storyTools?.close();if(event==='CHAT_CHANGED'||player.phase!=='idle'&&!player.valid?.())player.stop('消息已变化');if(preparing&&(event==='CHAT_CHANGED'||(preparing.snap?!unchanged(preparing.snap):event!=='MESSAGE_EDITED')))preparing.abort();scheduleRender();});for(const event of ['CHARACTER_MESSAGE_RENDERED','MESSAGE_RECEIVED'])subscribe(ctx.eventTypes[event],scheduleRender);subscribe(ctx.eventTypes.CHAT_CHANGED,()=>vnHost?.close());for(const event of ['GENERATION_STOPPED','GENERATION_ENDED'])subscribe(ctx.eventTypes[event],()=>vnHost?.ended());subscribe(ctx.eventTypes.CHARACTER_MESSAGE_RENDERED,id=>{const staged=!!vnHost?.showing;vnHost?.rendered(id);if(!staged){soundHost?.rendered(id);musicHost?.rendered(id);}pictures?.autoPictures(Number(id)).catch(e=>notice(e.message));});
