@@ -1096,7 +1096,7 @@ export class TTSBackend {
     /** The text settings with a change applied: presets, active and source as given; url, model, temperature, maxTokens and name edit the preset in use. */
     textWith(patch) {
         const p = patch && typeof patch === 'object' ? patch : {};
-        const text = normalizeText({ ...this.settings.text, ...Object.fromEntries(['source', 'active', 'presets'].filter(key => key in p).map(key => [key, clone(p[key])])) });
+        const text = normalizeText({ ...this.settings.text, ...Object.fromEntries(['source', 'active', 'presets', 'aux'].filter(key => key in p).map(key => [key, clone(p[key])])) });
         const active = text.presets.find(x => x.id === text.active);
         for (const key of ['name', 'url', 'model', 'temperature', 'maxTokens', 'thinking']) if (key in p) active[key] = p[key];
         return normalizeText(text);
