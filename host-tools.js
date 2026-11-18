@@ -1,8 +1,10 @@
+import {createSelectionDraw} from './host-selection.js';
 // Compact menus on the tavern page; colors inherit the active tavern theme.
 // entry: whether the 楼层工具 button is shown on each reply (hidden() takes it away too, with the voice menu).
-export function createStoryTools({doc = document, hidden, entry = () => true, message, valid, wave, actions, notice}) {
+export function createStoryTools({doc = document, hidden, entry = () => true, message, valid, wave, actions, notice, narration = () => ({})}) {
  let menu = null, anchor = null, hold = null, suppress = null;
  const win = doc.defaultView;
+ const selection = createSelectionDraw({doc, hidden, message, valid, scope: narration, draw: actions.drawSelection, notice});
  function close() { menu?.remove(); menu = null; anchor = null; }
  function cancel() { if (hold) win.clearTimeout(hold.timer); hold = null; }
  function show(button, rows) {
@@ -39,7 +41,8 @@ export function createStoryTools({doc = document, hidden, entry = () => true, me
   if (anchor === button) return close();
   const snap = scope(button); if (!snap || hidden()) return;
   // 给这层楼配音 (while 正文语音 is on): any reply's lines voiced again, not only the newest one's.
-  show(button, [['给这层楼生图', checked(snap, () => actions.draw(snap.id))], ...(actions.canVoice?.() ? [['给这层楼配音', checked(snap, () => actions.voice(snap.id))]] : []), ['从这层看视觉小说', checked(snap, () => actions.vn(snap.id))], ['台词小窗', checked(snap, () => actions.dialogue(snap.id))], actions.playing?.(snap.id) ? ['停止播放', () => actions.stop()] : ['整条播放', checked(snap, () => actions.play(snap.id))]]);
+  const selected = selection.forMessage(snap.id);
+  show(button, [...(selected ? [['给选中文字生图', () => selection.activate(selected)]] : []), ['给这层楼生图', checked(snap, () => actions.draw(snap.id))], ...(actions.canVoice?.() ? [['给这层楼配音', checked(snap, () => actions.voice(snap.id))]] : []), ['从这层看视觉小说', checked(snap, () => actions.vn(snap.id))], ['台词小窗', checked(snap, () => actions.dialogue(snap.id))], actions.playing?.(snap.id) ? ['停止播放', () => actions.stop()] : ['整条播放', checked(snap, () => actions.play(snap.id))]]);
  }
  function down(event) {
   cancel(); suppress = null; if (event.button !== 0 || hidden()) return;
@@ -52,11 +55,12 @@ export function createStoryTools({doc = document, hidden, entry = () => true, me
  function key(event) {
   if (!menu) return;
   if (event.key === 'Escape') { const previous = anchor; close(); previous?.focus(); event.preventDefault(); }
-  else if (['ArrowDown', 'ArrowUp'].includes(event.key)) { const items = [...menu.querySelectorAll('button')], i = items.indexOf(doc.activeElement); items[(i + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); event.preventDefault(); }
+  else if (['ArrowDown', 'ArrowUp'].includes(event.key)) { const items = [...menu.querySelectorAll('button')], i = items.indexOf(doc.activeElement); items[i < 0 ? (event.key === 'ArrowDown' ? 0 : items.length - 1) : (i + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus(); event.preventDefault(); }
  }
  const listeners = [['click', click], ['pointerdown', down], ['pointermove', move], ['pointerup', cancel], ['pointercancel', cancel], ['contextmenu', context], ['keydown', key]];
  for (const [type, fn] of listeners) doc.addEventListener(type, fn, true);
  function buttons() {
+  selection.refresh();
   if (hidden() || !entry()) close();
   for (const mes of doc.querySelectorAll('#chat .mes[mesid]')) {
    const old = mes.querySelector('[data-sttts-tools]');
@@ -67,5 +71,5 @@ export function createStoryTools({doc = document, hidden, entry = () => true, me
    button.title = '小手机工具'; button.setAttribute('aria-label', '小手机工具'); button.setAttribute('aria-haspopup', 'menu'); bar.prepend(button);
   }
  }
- return {buttons, close, dispose() { cancel(); close(); for (const [type, fn] of listeners) doc.removeEventListener(type, fn, true); doc.querySelectorAll('[data-sttts-tools]').forEach(el => el.remove()); }};
+ return {buttons, close, dispose() { selection.dispose(); cancel(); close(); for (const [type, fn] of listeners) doc.removeEventListener(type, fn, true); doc.querySelectorAll('[data-sttts-tools]').forEach(el => el.remove()); }};
 }
