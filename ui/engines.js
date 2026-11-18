@@ -7,6 +7,7 @@ import {swipeRow, mountSwipeList} from './swipe-list.js';
 import {fly} from './carry.js';
 import {CUSTOM_TEMPLATES, voicesFromFolder, shortLanguage, customHint, customSlots, voiceFromLink} from '../core/custom-voice.js';
 import {cleanAddress, fromCurl} from '../core/custom-detect.js';
+import {AUX_NAMES} from '../core/llm.js';
 
 export function enginesApp(ctx) {
   const {api} = ctx, v = createView(ctx, 'engines'), drafts = new Map();
@@ -580,6 +581,13 @@ export function enginesApp(ctx) {
           ${field('思考', select('text-thinking', t.thinking || 'auto', [['auto', '按模型默认'], ['off', '关掉思考']]), '会先思考的模型（GLM、Qwen3、豆包、DeepSeek 思考版……）写手机里的字时可以关掉思考：快很多，也省钱，长度不会被思考用光。插件会发 enable_thinking: false 和 thinking: disabled，大多数接口认其中一个；接口报错不认识这些参数时改回「按模型默认」。')}
           ${field('最长回复（tokens）', input('text-maxTokens', t.maxTokens, 'number', 'min="64" max="128000" step="1"'), '一次回复最多写多少（最多 128000），所有用到文字模型的地方都至少给这么多。配音、配图规划这些要重写整段正文的，正文很长时会自动给到更多，不会比这里少。会先思考的模型，思考也算在里面。')}
         </div>` : '')
+      + (custom && all.presets.length > 1 ? groupTitle('辅助接口', help('摘要、转 tag 这些反复调用的零碎活，可以换一套更便宜的接口去做，正文和聊天还是用上面那套。\n\n比如主接口用 Gemini（额度紧张），辅助接口用 DeepSeek：记忆整理、配图转 tag、写歌这些走 DeepSeek，不占 Gemini 的额度。\n\n下面勾了哪几样，就哪几样走辅助接口；没勾的还走主接口。')) + `<div class="group pad">
+        ${toggle('text-aux-enabled', '开辅助接口', all.aux?.enabled === true, '打开后，下面勾的活换另一套接口做。')}
+        ${all.aux?.enabled ? `<p class="hint">用哪一套：</p>
+        <div class="text-presets">${all.presets.filter(p => p.id !== all.active).map(p => `<button type="button" class="combo-chip" data-action="text-aux-pick" data-id="${esc(p.id)}" aria-pressed="${p.id === all.aux?.id}">${esc(p.name)}</button>`).join('') || '<p class="hint">只有一套接口。先在上面新建一套，填好地址和模型再来选。</p>'}</div>
+        <p class="hint">哪几样走它（可以多选）：</p>
+        <div class="text-presets">${Object.entries(AUX_NAMES).map(([k, label]) => `<button type="button" class="combo-chip" data-action="text-aux-use" data-use="${k}" aria-pressed="${(all.aux?.uses || []).includes(k)}">${label}</button>`).join('')}</div>` : ''}
+      </div>` : '')
       + `<div class="savebar"><span class="save-state" data-save-state>${dirty ? '未保存' : '已保存'}</span>${btn('save-text', '保存', 'primary')}</div>`);
   }
 
@@ -796,6 +804,15 @@ export function enginesApp(ctx) {
         break;
       }
       case 'save-text': { const typed = v.root.querySelector('[data-field=key]')?.value.trim(); if (typed) api.setTextKey(textDraft.active, typed); } api.saveText(textDraft); textDraft = structuredClone(api.getState().text); dirty = false; render(); ctx.notify('文字模型已保存'); break;
+      case 'text-aux-enabled': { textDraft.aux = {...(textDraft.aux || {enabled: false, id: '', uses: []}), enabled: !textDraft.aux?.enabled}; if (textDraft.aux.enabled && !textDraft.aux.id) textDraft.aux.id = textDraft.presets.find(p => p.id !== textDraft.active)?.id || ''; changed(); dirty = true; render(); break; }
+      case 'text-aux-pick': { textDraft.aux = {...(textDraft.aux || {enabled: true, uses: []}), id: el.dataset.id}; changed(); dirty = true; render(); break; }
+      case 'text-aux-use': {
+        const uses = new Set(textDraft.aux?.uses || []), key = el.dataset.use;
+        if (uses.has(key)) uses.delete(key); else uses.add(key);
+        textDraft.aux = {...(textDraft.aux || {enabled: true, id: ''}), uses: [...uses]};
+        changed(); dirty = true; render();
+        break;
+      }
       case 'save-embed': {
         const typed = v.root.querySelector('[data-field=key]')?.value || '';
         if (typed.trim()) api.setKey('embed', typed);

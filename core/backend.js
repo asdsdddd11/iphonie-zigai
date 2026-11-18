@@ -15,7 +15,7 @@ import { buildPeekRequest, cleanPeek, peekId } from './peek.js';
 import { languageCode } from './languages.js';
 import { normalizeMoments, buildMomentsRequest } from './moments.js';
 import { normalizeCalls, buildCallRequest } from './call.js';
-import { normalizeText, activeText, customRequest, listModels, streamText, asMessages, tavernTextRequest, answerRoom, TEXT_PRESET_ID } from './llm.js';
+import { normalizeText, activeText, textForTask, customRequest, listModels, streamText, asMessages, tavernTextRequest, answerRoom, TEXT_PRESET_ID } from './llm.js';
 import { normalizeEmbed, embedReady, embedTexts } from './embed.js';
 import { bookId, emptyBook, cleanBook, removeNode, pruneBook } from './memory.js';
 import { normalizeMemoryBooks, normalizeAssistantThreads } from './data-transfer.js';
@@ -1117,12 +1117,14 @@ export class TTSBackend {
     /** signal: the request is let go (停止回复). Kept out of the request log, which keeps copies of the request. */
     async generateText(context, { use = 'other', signal, ...request }) {
         request = injectJailbreak(request, this.settings.globalPreset);
-        const answer = await this.requestLog.run('文字模型', {source: this.settings.text.source, model: activeText(this.settings.text).model, ...request}, () => this.generateTextRaw(context, request, signal));
+        // 辅助接口：摘要、转 tag 这些反复调用的零碎活可以走另一套更便宜的接口（和正文那套分开）
+        const text = textForTask(this.settings.text, use);
+        const answer = await this.requestLog.run('文字模型', {source: text.source, model: text.model, ...request}, () => this.generateTextRaw(context, request, signal, text));
         this.ledger.text(use, request.prompt, answer);
         return answer;
     }
-    async generateTextRaw(context, request, signal) {
-        const text = activeText(this.settings.text);
+    async generateTextRaw(context, request, signal, text = null) {
+        text = text || activeText(this.settings.text);
         if (text.source === 'custom') return customRequest({ text, key: this.textKeys.get(text.id) || '', prompt: request.prompt, responseLength: request.responseLength, fetch: this.textFetch, signal });
         if (!context?.generateRaw) throw Error('当前酒馆版本不支持后台生成');
         // The chat-completion request the tavern builds is kept, so an empty answer can be asked again as a stream:

@@ -16,9 +16,16 @@ export function defaultTextPreset(id = 'default', name = '自定义接口') {
   return {id, name, url: '', model: '', temperature: 0.9, maxTokens: 1200, thinking: 'auto', stream: true};
 }
 export function defaultText() {
-  return {source: 'tavern', active: 'default', presets: [defaultTextPreset()]};
+  return {source: 'tavern', active: 'default', aux: {enabled: false, id: '', uses: []}, presets: [defaultTextPreset()]};
 }
 export const TEXT_PRESET_ID = /^[\w-]{1,64}$/;
+/**
+ * The tasks a second connection may take over: the ones that call the model again and again on the side (writing up
+ * memory, turning a picture into drawing tags, writing a song…). The story itself and the apps that make content are
+ * not here: those are what the main connection is for.
+ */
+export const AUX_USES = Object.freeze(['memory', 'picture', 'song', 'sound', 'voices', 'wardrobe', 'generator', 'book', 'assistant', 'other']);
+export const AUX_NAMES = Object.freeze({memory: '记忆整理', picture: '配图转 tag · 绘图提示词', song: '写歌', sound: '音效描述', voices: '挑音色', wardrobe: '衣柜', generator: '开场白 · 走向 · 小剧场', book: '绘本', assistant: '助手', other: '其他零碎请求'});
 const count = (value, [min, max], fallback, round = true) => { const n = round ? Math.round(Number(value)) : Number(value); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback; };
 function normalizePreset(value, index) {
   const base = defaultTextPreset();
@@ -36,7 +43,27 @@ export function normalizeText(value) {
   const list = Array.isArray(value.presets) && value.presets.length ? value.presets : [{...value, id: 'default', name: '自定义接口'}];
   const presets = [];
   for (const [i, p] of list.slice(0, 30).entries()) { const preset = normalizePreset(p, i); if (presets.some(x => x.id === preset.id)) preset.id = crypto.randomUUID(); presets.push(preset); }
-  return {source: value.source === 'custom' ? 'custom' : 'tavern', active: presets.some(p => p.id === value.active) ? value.active : presets[0].id, presets};
+  const source = value.source === 'custom' ? 'custom' : 'tavern';
+  const active = presets.some(p => p.id === value.active) ? value.active : presets[0].id;
+  // 辅助接口：摘要、转 tag 这些反复调用的一堆零碎活，可以换一套更便宜的接口去做
+  const auxIn = value.aux && typeof value.aux === 'object' ? value.aux : {};
+  const aux = {
+    enabled: auxIn.enabled === true,
+    id: TEXT_PRESET_ID.test(String(auxIn.id || '')) ? String(auxIn.id) : '',
+    uses: Array.isArray(auxIn.uses) ? [...new Set(auxIn.uses.filter(u => AUX_USES.includes(u)))].slice(0, 20) : [],
+  };
+  if (!aux.id || !presets.some(p => p.id === aux.id)) { aux.enabled = false; aux.id = ''; }
+  return {source, active, aux, presets};
+}
+/** 这一次请求该用哪套接口：辅助任务且开了辅助接口、且这次的任务在名单里，就用辅助那套。 */
+export function textForTask(value, use) {
+  const text = normalizeText(value);
+  const aux = text.aux;
+  if (aux?.enabled && aux.id && aux.uses.includes(use)) {
+    const preset = text.presets.find(p => p.id === aux.id);
+    if (preset) return {source: text.source, ...preset, aux: true};
+  }
+  return {source: text.source, ...text.presets.find(p => p.id === text.active), aux: false};
 }
 /** The connection in use: the source plus the active preset's address, model, temperature and length. */
 export function activeText(value) {
