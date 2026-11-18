@@ -692,6 +692,24 @@ export function enginesApp(ctx) {
       return;
     }
     if (engine === 'llm') {
+      // 辅助接口的总开关（toggle 给的是 data-field，不是 data-action）
+      if (el.dataset.field === 'text-aux-enabled') {
+        const on = el.checked;
+        textDraft.aux = {...(textDraft.aux || {enabled: false, id: '', uses: []}), enabled: on};
+        if (on && !textDraft.aux.id) {
+          // 还没有可选的那套：先拿一套已有的，没有就当场建一套，免得打开开关又存不进去
+          const other = textDraft.presets.find(p => p.id !== textDraft.active);
+          if (other) textDraft.aux.id = other.id;
+          else {
+            const id = crypto.randomUUID(), now = textPreset();
+            textDraft.presets.push({id, name: '辅助 1', url: '', model: '', temperature: now.temperature, maxTokens: now.maxTokens, thinking: 'auto', stream: true});
+            textDraft.aux.id = id;
+          }
+        }
+        changed(); dirty = true; render();
+        if (on) v.root.querySelector('[data-field=aux-url]')?.focus();
+        return;
+      }
       // 辅助接口那套的字段：写进 aux 选中的那套，不是 active
       if (/^aux-/.test(el.dataset.field)) {
         const key = el.dataset.field.slice(4), p = textDraft.presets.find(x => x.id === textDraft.aux?.id);
@@ -835,8 +853,7 @@ export function enginesApp(ctx) {
         v.root.querySelector('[data-field=aux-url]')?.focus();
         break;
       }
-      case 'text-aux-enabled': { textDraft.aux = {...(textDraft.aux || {enabled: false, id: '', uses: []}), enabled: !textDraft.aux?.enabled}; if (textDraft.aux.enabled && !textDraft.aux.id) textDraft.aux.id = textDraft.presets.find(p => p.id !== textDraft.active && p.url && p.model)?.id || ''; changed(); dirty = true; render(); break; }
-      case 'text-aux-pick': { textDraft.aux = {...(textDraft.aux || {enabled: true, uses: []}), id: el.dataset.id}; changed(); dirty = true; render(); break; }
+      case 'text-aux-pick': { textDraft.aux = {...(textDraft.aux || {enabled: true, uses: []}), id: el.dataset.id, enabled: true}; changed(); dirty = true; render(); break; }
       case 'text-aux-use': {
         const uses = new Set(textDraft.aux?.uses || []), key = el.dataset.use;
         if (uses.has(key)) uses.delete(key); else uses.add(key);
