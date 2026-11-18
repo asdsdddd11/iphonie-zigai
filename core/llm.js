@@ -55,13 +55,18 @@ export function normalizeText(value) {
   if (!aux.id || !presets.some(p => p.id === aux.id)) { aux.enabled = false; aux.id = ''; }
   return {source, active, aux, presets};
 }
-/** 这一次请求该用哪套接口：辅助任务且开了辅助接口、且这次的任务在名单里，就用辅助那套。 */
+/**
+ * 这一次请求该用哪套接口。
+ * 辅助任务（摘要、转 tag 这些）走辅助接口——它永远是一套**自定义接口**：酒馆主模型只有一个，没法另选一套。
+ * 其余任务走主接口（酒馆主模型，或者用户自己那套）。
+ */
 export function textForTask(value, use) {
   const text = normalizeText(value);
   const aux = text.aux;
   if (aux?.enabled && aux.id && aux.uses.includes(use)) {
     const preset = text.presets.find(p => p.id === aux.id);
-    if (preset) return {source: text.source, ...preset, aux: true};
+    // 地址和模型都填了才算数；没填就当没开，走主接口，不至于一个任务直接失败
+    if (preset?.url && preset?.model) return {source: 'custom', ...preset, aux: true};
   }
   return {source: text.source, ...text.presets.find(p => p.id === text.active), aux: false};
 }
