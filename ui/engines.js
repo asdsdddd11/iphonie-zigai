@@ -585,7 +585,7 @@ export function enginesApp(ctx) {
       + `<div class="group pad">
         ${toggle('text-aux-enabled', '开辅助接口', all.aux?.enabled === true, '打开后，下面勾的活换另一套接口做。')}
         ${all.aux?.enabled ? `<p class="hint">用哪一套（只有填了地址和模型的才会列出来）：</p>
-        <div class="text-presets">${all.presets.filter(p => p.id !== all.active && p.url && p.model).map(p => `<button type="button" class="combo-chip" data-action="text-aux-pick" data-id="${esc(p.id)}" aria-pressed="${p.id === all.aux?.id}">${esc(p.name)}</button>`).join('')}${btn('text-new', icon('add'), 'chip-button', 'aria-label="新建一套接口"')}</div>
+        <div class="text-presets">${all.presets.filter(p => p.id !== all.active).map(p => `<button type="button" class="combo-chip" data-action="text-aux-pick" data-id="${esc(p.id)}" aria-pressed="${p.id === all.aux?.id}">${esc(p.name)}${p.url && p.model ? '' : '（未填）'}</button>`).join('')}${btn('text-aux-new', icon('add'), 'chip-button', 'aria-label="新建一套辅助接口"')}</div>
         ${(() => {
           const a = all.presets.find(p => p.id === all.aux?.id);
           if (!a) return '<p class="hint">还没有选接口。点上面的「＋」新建一套，在下面填好地址、模型和密钥。</p>';
@@ -826,6 +826,15 @@ export function enginesApp(ctx) {
         break;
       }
       case 'save-text': { const typed = v.root.querySelector('[data-field=key]')?.value.trim(); if (typed) api.setTextKey(textDraft.active, typed); } api.saveText(textDraft); textDraft = structuredClone(api.getState().text); dirty = false; render(); ctx.notify('文字模型已保存'); break;
+      case 'text-aux-new': {
+        // 新建一套给辅助用，不切主接口
+        const id = crypto.randomUUID(), now = textPreset();
+        textDraft.presets.push({id, name: '辅助 ' + (textDraft.presets.length + 1), url: '', model: '', temperature: now.temperature, maxTokens: now.maxTokens, thinking: 'auto', stream: true});
+        textDraft.aux = {...(textDraft.aux || {enabled: true, id: '', uses: []}), id};
+        changed(); dirty = true; render();
+        v.root.querySelector('[data-field=aux-url]')?.focus();
+        break;
+      }
       case 'text-aux-enabled': { textDraft.aux = {...(textDraft.aux || {enabled: false, id: '', uses: []}), enabled: !textDraft.aux?.enabled}; if (textDraft.aux.enabled && !textDraft.aux.id) textDraft.aux.id = textDraft.presets.find(p => p.id !== textDraft.active && p.url && p.model)?.id || ''; changed(); dirty = true; render(); break; }
       case 'text-aux-pick': { textDraft.aux = {...(textDraft.aux || {enabled: true, uses: []}), id: el.dataset.id}; changed(); dirty = true; render(); break; }
       case 'text-aux-use': {
