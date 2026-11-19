@@ -290,8 +290,11 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
     return [kept, recallText(found, {who: '剧情'})].filter(Boolean).join('\n\n');
   }
 
-  /** 读百宝书（柏宝书）的正文摘要：叶子在每条消息的 extra.bbs_leaf，压缩节点在 chatMetadata.baibai_book.summaries。 */
-  function baibaiStory(cap = 3000) {
+  /**
+   * 读百宝书（柏宝书）的正文摘要：叶子在每条消息的 extra.bbs_leaf，压缩节点在 chatMetadata.baibai_book.summaries。
+   * 预算够大时全部带上（压缩节点按层级和时间排在前，叶子从新往旧填满剩下的）；只有真的放不下才在开头写个「……」。
+   */
+  function baibaiStory(cap = 12000) {
     const ctx = context();
     if (!ctx) return '';
     const parts = [];
@@ -305,9 +308,19 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
       if (leaf?.text && !m?.extra?.bbs_omit) leaves.push({text: String(leaf.text).trim(), at: Number(leaf.createdAt) || 0});
     }
     leaves.sort((a, b) => a.at - b.at);
-    for (const l of leaves.slice(-10)) parts.push(l.text);
+    // 叶子从最新往回填，填到预算为止：最近的剧情一定留得住，早的按剩下的空间留
+    const head = parts.join('\n');
+    let room = Math.max(0, cap - head.length - 1);
+    const kept = [];
+    for (let i = leaves.length - 1; i >= 0; i--) {
+      const t = leaves[i].text;
+      if (t.length + 1 > room) break;
+      kept.unshift(t);
+      room -= t.length + 1;
+    }
+    parts.push(...kept);
     const text = parts.join('\n');
-    return text.length > cap ? '……' + text.slice(-cap) : text;
+    return kept.length < leaves.length ? '……' + text : text;
   }
 
   /** 更早的剧情: 百宝书的摘要优先（它每条正文一个、已合并），没有再退到小手机自己的正文摘要。 */
@@ -408,7 +421,7 @@ export function createMemoryHost({context, settings, backend, notice = () => {}}
     }
     return written;
   }
-  async function lifeContext(name, {cap = 1000, query = ''} = {}) {
+  async function lifeContext(name, {cap = 3000, query = ''} = {}) {
     const book = await backend.memoryBook(lifeBook(name));
     const list = roots(book);
     let kept = '';
