@@ -962,7 +962,8 @@ export function plainStory(textValue, excludeTags = []) {
     .replace(/<img\b[^>]*>[^<]*<\/img\s*>|<img\b[^>]*>/gi, '')
     .replace(OTHER_PICTURE_BLOCKS, ' ')
     .replace(DATA_BLOCKS, ' ');
-  const extra = (excludeTags || []).map(t => String(t).replace(/[^\w-]/g, '')).filter(Boolean);
+  // 标签名可以是中文（<小剧场> / <状态栏>）：\w 只认 ASCII，中文要单独留着，否则整串被清空、排除不生效。
+  const extra = (excludeTags || []).map(t => String(t).replace(/[^\w\u4e00-\u9fff-]/g, '')).filter(Boolean);
   if (extra.length) said = said.replace(new RegExp(`<(${extra.join('|')})[^>]*>[\\s\\S]*?(?:<\\/\\1[^>]*>|$)`, 'gi'), ' ');
   return said
     .replace(/<[^>]+>/g, '')
