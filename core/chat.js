@@ -24,7 +24,7 @@ const DATA_BLOCK_TAGS = [
   'BreederApp', 'UpdateVariable', 'Analysis', 'JSONPatch', 'status_current_variables',
   'UserData', 'MeatTargetDatabase', 'MeatTarget', 'HuntFeed', 'ShowcaseFeed',
   'Messages', 'Message', 'Chat', 'MyStable', 'Owned', 'Trophy', 'TrophyRoom', 'Post', 'DynamicViews',
-  'worldview', 'yuzi',
+  'yuzi',
   'thoughts', 'think', 'thinking', 'choice', 'option',
   'root-status', 'root_state',
 ];
@@ -155,7 +155,7 @@ export function normalizeChatPreset(p = {}) {
   }
   return {
     id: String(p.id || crypto.randomUUID()), name: text(p.name, 60) || '聊天预设', rev: PRESET_REV,
-    context: count(p.context, 0, CHAT_LIMITS.story, DEFAULT_PRESET.context),
+    context: count(p.context, 1, CHAT_LIMITS.story, DEFAULT_PRESET.context),
     history: count(p.history, 2, CHAT_LIMITS.history, DEFAULT_PRESET.history),
     // How much story and 世界书 a phone request takes, in characters; 0: no limit.
     storyEach: count(p.storyEach, 0, CHAT_LIMITS.chars, DEFAULT_PRESET.storyEach),

@@ -272,7 +272,7 @@ export function presetsApp(ctx) {
     const marks = p.marks || {inner: [], phone: []}, marked = (marks.inner || []).length + (marks.phone || []).length;
     const folds = chat
       ? fold('preset-read', '读多少', `正文 ${p.context} 条 · 聊天 ${p.history} 条`,
-          `${field('读取最近的正文', input('context', p.context, 'number', 'min="0" max="100" step="1"'), '回消息时参考最近几条正文，0 表示不看剧情。')}${field('读取聊天记录', input('history', p.history, 'number', 'min="2" max="500" step="1"'), '回消息时带上最近多少条手机聊天。')}
+          `${field('读取最近的正文', input('context', p.context, 'number', 'min="1" max="100" step="1"'), '回消息时参考最近几条正文，至少一条（不看剧情会让回复跟当前场景脱节）。')}${field('读取聊天记录', input('history', p.history, 'number', 'min="2" max="500" step="1"'), '回消息时带上最近多少条手机聊天。')}
           ${field('每条正文最多（字）', input('storyEach', p.storyEach ?? 4000, 'number', 'min="0" step="500"'), '一条正文太长时只取前面这么多字。0 表示不限制。中文大约一个字一个 token。')}${field('正文一共最多（字）', input('storyTotal', p.storyTotal ?? 20000, 'number', 'min="0" step="1000"'), '最近的正文优先，加起来超过这么多字就不再往前读。0 表示不限制。')}
           ${field('只读这些人的正文（空=全部）', textArea('storyFilter.onlyNames', (p.storyFilter?.onlyNames || []).join('\n'), 'rows="2"'), '一行一个名字。空着就是所有人的正文都读。')}${field('不读这些人的正文', textArea('storyFilter.excludeNames', (p.storyFilter?.excludeNames || []).join('\n'), 'rows="2"'), '一行一个名字，这些人的正文不发给手机模型。')}
           ${field('不读含这些词的正文', textArea('storyFilter.excludeWords', (p.storyFilter?.excludeWords || []).join('\n'), 'rows="2"'), '一行一个词，整条正文含有这个词就不读。')}${field('不读这些标签块', textArea('storyFilter.excludeTags', (p.storyFilter?.excludeTags || []).join('\n'), 'rows="2"'), '一行一个标签名（不带尖括号），这些标签整段去掉。默认已经排除常见数据块。')}
