@@ -964,7 +964,13 @@ export function plainStory(textValue, excludeTags = []) {
     .replace(DATA_BLOCKS, ' ');
   // 标签名可以是中文（<小剧场> / <状态栏>）：\w 只认 ASCII，中文要单独留着，否则整串被清空、排除不生效。
   const extra = (excludeTags || []).map(t => String(t).replace(/[^\w\u4e00-\u9fff-]/g, '')).filter(Boolean);
-  if (extra.length) said = said.replace(new RegExp(`<(${extra.join('|')})[^>]*>[\\s\\S]*?(?:<\\/\\1[^>]*>|$)`, 'gi'), ' ');
+  if (extra.length) {
+    const names = extra.join('|');
+    // <CAST>…</CAST>
+    said = said.replace(new RegExp(`<(${names})[^>]*>[\\s\\S]*?(?:<\\/\\1[^>]*>|$)`, 'gi'), ' ');
+    // [CAST]…[/CAST]：角色卡用方括号写的状态块（[STATUS]、[CAST]、[tuiyan]）
+    said = said.replace(new RegExp(`\\[(${names})\\][\\s\\S]*?(?:\\[\\/\\1\\]|$)`, 'gi'), ' ');
+  }
   return said
     .replace(/<[^>]+>/g, '')
     .replace(/\s+/g, ' ')
