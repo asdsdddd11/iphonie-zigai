@@ -1,12 +1,12 @@
 // Bounded, session-only diagnostics. Never persist keys or binary payloads in a log or backup.
 const SECRET = /authorization|cookie|password|secret|api[-_]?key|access[-_]?token|csrf|^key$|^token$/i;
-const MAX_TEXT = 100000, MAX_TOTAL = 4000000;
+const MAX_TEXT = 600000, MAX_TOTAL = 8000000;
 export class RequestLog {
   constructor({change = () => {}, secrets = () => []} = {}) { this.rows = []; this.total = 0; this.change = change; this.secrets = secrets; }
   clean(value) {
     let secrets = []; try { secrets = this.secrets() || []; } catch { /* key storage may be unavailable */ }
     const keys = [...new Set(secrets.filter(x => typeof x === 'string' && x.length >= 4))];
-    let remaining = 300000, nodes = 3000;
+    let remaining = 800000, nodes = 8000;
     const scrub = text => {
       let s = String(text).replace(/\bBearer\s+[^\s"',}]+/gi, 'Bearer [已隐藏]').replace(/([?&](?:key|api_key|token|access_token)=)[^&#\s]+/gi, '$1[已隐藏]');
       for (const key of keys) s = s.split(key).join('[已隐藏]').split(encodeURIComponent(key)).join('[已隐藏]');
